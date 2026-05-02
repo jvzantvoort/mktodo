@@ -1,0 +1,7 @@
+---
+todofile: TODO.md
+projects:
+  - name: default
+    title: TODO
+    parent: nil
+
