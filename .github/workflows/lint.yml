@@ -18,12 +18,13 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.26'
 
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
+        install-mode: goinstall
         args: --timeout=5m
 
   format-check:
@@ -37,7 +38,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.26'
 
     - name: Check gofmt
       run: |
