@@ -10,12 +10,15 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/todo"
 )
 
+// Item is an alias for todo.Item for convenience
+type Item = todo.Item
+
 // Document represents a parsed markdown document
 type Document struct {
 	Path     string
 	Sections []*Section
 	Projects map[string]*project.Project
-	Items    []*todo.Item
+	Items    []*Item
 }
 
 // LoadDocument loads and parses a markdown file

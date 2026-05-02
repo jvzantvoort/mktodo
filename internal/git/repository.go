@@ -61,3 +61,8 @@ func FindRepositoryFrom(startPath string) (*Repository, error) {
 func (r *Repository) ConfigPath() string {
 	return filepath.Join(r.Root, ".mktodo.yml")
 }
+
+// ResolvePath resolves a relative path from the repository root
+func (r *Repository) ResolvePath(relPath string) string {
+	return filepath.Join(r.Root, relPath)
+}
