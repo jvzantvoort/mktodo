@@ -1,0 +1,12 @@
+---
+todofile: README.md
+projects:
+  - name: lego
+    title: Lego project targets
+    parent: nil
+  - name: technic
+    title: Technic
+    parent: lego
+  - name: city
+    title: City
+    parent: lego

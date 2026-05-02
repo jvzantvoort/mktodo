@@ -1,0 +1,931 @@
+# mktodo Application Specification
+
+**Version:** 1.0  
+**Last Updated:** 2026-05-02  
+**Status:** Draft
+
+## Executive Summary
+
+mktodo is a command-line and terminal UI application for managing TODO items within markdown files in git repositories. It provides structured project hierarchies, FIXME prioritization, and both CLI and interactive interfaces while preserving non-TODO content in markdown documents.
+
+## Goals and Non-Goals
+
+### Goals
+- Provide efficient TODO management within existing markdown documentation
+- Support hierarchical project organization
+- Offer both quick CLI operations and interactive TUI workflows
+- Preserve all non-TODO content in markdown files
+- Integrate seamlessly with git repository workflows
+- Deliver a consistent, accessible user experience
+
+### Non-Goals
+- Not a general-purpose markdown editor
+- Not a project management system with time tracking, assignments, or Gantt charts
+- Not a web-based or GUI application
+- Not a multi-file search and replace tool
+- Not a git client replacement
+
+## System Architecture
+
+### Technology Stack
+- **Language:** Go (golang)
+- **Module:** `github.com/jvzantvoort/mktodo`
+- **Dependencies:**
+  - `github.com/spf13/viper` - Configuration management
+  - `github.com/spf13/cobra` - CLI framework
+  - `github.com/charmbracelet/bubbletea` - TUI framework
+
+### Component Overview
+```
+mktodo/
+├── cmd/                    # Cobra command definitions
+│   ├── root.go
+│   ├── add.go
+│   ├── remove.go
+│   ├── done.go
+│   ├── list.go
+│   ├── report.go
+│   └── tui.go
+├── internal/
+│   ├── config/            # Configuration loading and validation
+│   ├── parser/            # Markdown parsing and manipulation
+│   ├── project/           # Project hierarchy management
+│   ├── todo/              # TODO item models and operations
+│   ├── git/               # Git repository detection
+│   └── tui/               # Bubbletea TUI components
+├── messages/              # Embedded text blocks (go:embed)
+└── pkg/                   # Public API (if needed)
+```
+
+## Functional Requirements
+
+### FR-1: Git Repository Detection
+
+**Priority:** MUST  
+**Description:** Application operates only within git repositories.
+
+**Acceptance Criteria:**
+- Application detects git repository by traversing parent directories
+- Exits with clear error message if not in git repository
+- Uses git root as base for configuration file lookup
+- Error message suggests initializing git repo if appropriate
+
+**Example Error:**
+```
+Error: Not in a git repository
+Run 'git init' to initialize a repository, or navigate to an existing repository.
+```
+
+### FR-2: Configuration Management
+
+**Priority:** MUST  
+**Description:** Load and validate `.mktodo.yml` from git repository root.
+
+**Configuration Schema:**
+```yaml
+todofile: <path>           # Relative to git root, default: README.md
+projects:                  # Array of project definitions
+  - name: <string>         # Identifier for CLI (required)
+    title: <string>        # Display title in markdown (required)
+    parent: <string|nil>   # Parent project name or nil (required)
+```
+
+**Acceptance Criteria:**
+- Load `.mktodo.yml` from git repository root
+- Validate all required fields present
+- Validate parent references exist (except nil)
+- Detect circular parent references
+- Provide clear error messages for invalid configuration
+- Support default project named "default" with title "TODO"
+
+**Validation Errors:**
+```
+Error: Invalid configuration in .mktodo.yml
+- Project 'technic' references non-existent parent 'lego'
+- Circular reference detected: project1 -> project2 -> project1
+```
+
+### FR-3: Project Hierarchy
+
+**Priority:** MUST  
+**Description:** Support nested project organization with parent-child relationships.
+
+**Rules:**
+- Projects with `parent: nil` render as `#` (level 1) headers
+- Child projects render one level deeper than parent (`##`, `###`, etc.)
+- Projects referenced as "parent.child.grandchild" in CLI
+- Maximum nesting depth: 6 (markdown header limit)
+
+**Acceptance Criteria:**
+- Parse project hierarchy from configuration
+- Calculate header levels based on parent chain
+- Support dotted notation for project selection
+- Validate nesting depth doesn't exceed markdown limits
+
+**Example Hierarchy:**
+```
+lego (nil) -> # Lego project targets
+  ├── technic (lego) -> ## Technic
+  └── city (lego) -> ## City
+      └── police (city) -> ### Police
+```
+
+### FR-4: Markdown Parsing
+
+**Priority:** MUST  
+**Description:** Parse markdown files to extract TODO items while preserving all other content.
+
+**TODO Item Format:**
+- `- [ ] <description>` - Open item
+- `- [X] <description>` - Completed item (case-insensitive: x, X)
+- `- [ ] FIXME: <description>` - High priority (FIXME: or fixme:)
+
+**Acceptance Criteria:**
+- Identify project sections by matching title headers
+- Extract TODO items from correct header sections
+- Preserve exact formatting, spacing, and content outside TODO sections
+- Maintain order of TODO items within sections
+- Support variations: `* [ ]`, `- [ ]`, `+ [ ]`
+- Detect indented TODO items (nested lists)
+- Handle edge cases: empty sections, missing headers, malformed checkboxes
+
+**Non-TODO Content Preservation:**
+- All content before first project header: unchanged
+- All content between project header and first TODO: unchanged
+- All content after last TODO in section: unchanged
+- All content in non-project sections: unchanged
+
+### FR-5: TODO Item Operations
+
+**Priority:** MUST  
+**Description:** Create, read, update, and delete TODO items.
+
+**Operations:**
+
+#### Add TODO Item
+- Insert new item at end of project's TODO list
+- Default to unchecked state
+- Support FIXME prefix detection
+- Create project sections if missing (with user confirmation)
+
+#### Remove TODO Item
+- Match by exact description or fuzzy match
+- Confirm before deletion
+- Support `--yes` flag to skip confirmation
+- Error if item not found
+
+#### Mark as Done/Undone
+- Toggle checkbox state: `[ ]` ↔ `[X]`
+- Match by description
+- Support batch operations
+
+#### List TODO Items
+- Display all items with project context
+- Filter by project (`-p flag`)
+- Filter by status (open/done)
+- Highlight FIXME items
+- Sort: FIXME first, then order in file
+
+### FR-6: Command Line Interface
+
+**Priority:** MUST  
+**Description:** Provide intuitive CLI commands following Unix conventions.
+
+**Commands:**
+
+#### `mktodo add <description>`
+```
+Flags:
+  -p, --project <name>    Project path (default: "default")
+  -y, --yes              Skip confirmations
+  
+Examples:
+  mktodo add "Complete documentation"
+  mktodo add -p lego.technic "Build crane model"
+  mktodo add "FIXME: Security vulnerability"
+```
+
+#### `mktodo remove <description>` (aliases: rm, destroy)
+```
+Flags:
+  -p, --project <name>    Project path (default: "default")
+  -y, --yes              Skip confirmation
+  
+Examples:
+  mktodo remove "Complete documentation"
+  mktodo rm -p lego "Old task"
+```
+
+#### `mktodo done <description>` (alias: complete)
+```
+Flags:
+  -p, --project <name>    Project path (default: "default")
+  
+Examples:
+  mktodo done "Complete documentation"
+  mktodo complete -p lego.technic "Build crane"
+```
+
+#### `mktodo list` (alias: ls)
+```
+Flags:
+  -p, --project <name>    Filter by project
+  -o, --open             Show only open items
+  -d, --done             Show only completed items
+  --format <format>      Output format: text|json|yaml
+  
+Examples:
+  mktodo list
+  mktodo ls -o
+  mktodo ls -p lego --format json
+```
+
+#### `mktodo open` (equivalent to `list --open`)
+```
+Show only open TODO items
+
+Examples:
+  mktodo open
+  mktodo open -p lego.technic
+```
+
+#### `mktodo report`
+```
+Generate graphical report of TODO items per project
+
+Flags:
+  --format <format>      Output format: text|html|markdown
+  -o, --output <file>    Write to file instead of stdout
+  
+Examples:
+  mktodo report
+  mktodo report --format html -o report.html
+```
+
+#### `mktodo tui`
+```
+Launch interactive terminal UI
+
+Examples:
+  mktodo tui
+```
+
+**Global Flags:**
+```
+  -c, --config <file>    Configuration file (default: .mktodo.yml)
+  -h, --help            Help for command
+  -v, --version         Version information
+```
+
+### FR-7: Interactive TUI
+
+**Priority:** MUST  
+**Description:** Provide interactive terminal interface using Bubbletea.
+
+**Layout:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ mktodo v1.0.0                              [? Help] [Esc Menu]│
+├─────────────────────────────────────────────────────────────┤
+│ Projects              │ TODO Items                           │
+│                       │                                      │
+│ ▸ TODO (3)           │ ┌──────────────────────────────────┐│
+│ ▾ Lego project (5)   │ │ [ ] Task 1                       ││
+│   ▸ Technic (2)      │ │ [ ] FIXME: Critical bug          ││
+│   ▸ City (3)         │ │ [X] Completed task               ││
+│                       │ └──────────────────────────────────┘│
+├─────────────────────────────────────────────────────────────┤
+│ ↑/↓: Navigate  Space: Toggle  e: Edit  d: Delete  a: Add   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Keybindings:**
+
+**Navigation:**
+- `↑/↓` or `j/k` - Move up/down
+- `←/→` or `h/l` - Switch between projects and items pane
+- `Tab` - Switch pane focus
+- `Enter` - Expand/collapse project or select item
+
+**Topic Operations:**
+- `Space` - Toggle TODO item status (done/undone)
+- `e` - Edit topic description (inline editor)
+- `d` - Delete topic (with confirmation popup)
+- `-` - Move topic up in list
+- `+` - Move topic down in list
+- `x` - Cut topic to clipboard/memory
+- `p` - Paste topic from clipboard/memory
+
+**Project Operations:**
+- `a` - Add new topic to selected project
+- `p` - Paste topic into project
+- `Enter` - Expand/collapse project
+
+**Menu:**
+- `Esc` - Open menu with options:
+  - `q` - Quit (confirm if unsaved changes)
+  - `s` - Save changes
+  - `x` - Save and quit
+- `?` - Show help overlay
+
+**Visual Feedback:**
+- FIXME items highlighted in red/bold
+- Completed items grayed out or with strikethrough
+- Current selection clearly indicated
+- Dirty state indicator when unsaved changes exist
+- Spinner/progress for slow operations
+
+**Acceptance Criteria:**
+- All operations available via keyboard
+- Responsive UI updates < 50ms
+- Graceful terminal resize handling
+- Confirmation dialogs for destructive actions
+- Clear visual indication of current state
+- Support for terminals without color
+- Accessible keyboard navigation
+
+### FR-8: File Operations
+
+**Priority:** MUST  
+**Description:** Safe, atomic file operations preserving data integrity.
+
+**Requirements:**
+- Atomic writes using temp file + rename pattern
+- Preserve file permissions and ownership
+- Preserve line endings (LF, CRLF)
+- Handle concurrent access gracefully
+- Create backups before modification (optional)
+
+**File Creation:**
+- Prompt user if todofile doesn't exist
+- Create with proper markdown structure
+- Respect `--yes` flag to auto-confirm
+- Create parent directories if needed
+
+**Acceptance Criteria:**
+- No data loss on write failure
+- Original file unchanged if error occurs
+- Detect and handle file modified externally
+- Proper error messages for permission issues
+
+### FR-9: FIXME Prioritization
+
+**Priority:** SHOULD  
+**Description:** Treat FIXME-prefixed items as high priority.
+
+**Behavior:**
+- Detect "FIXME:" or "fixme:" prefix (case-insensitive)
+- List command shows FIXME items first
+- TUI highlights FIXME items (color/bold)
+- Report shows FIXME count prominently
+- Filter by FIXME status in list command
+
+**Acceptance Criteria:**
+- `- [ ] FIXME: message` detected correctly
+- `- [ ] fixme: message` detected correctly
+- FIXME items appear first in listings
+- Visual distinction in TUI
+- Report includes FIXME statistics
+
+### FR-10: Report Generation
+
+**Priority:** SHOULD  
+**Description:** Generate visual reports of TODO items per project.
+
+**Report Contents:**
+- Summary statistics (total, open, done, FIXME)
+- Per-project breakdown
+- Completion percentages
+- FIXME items highlighted
+- Trend data (if historical data available)
+
+**Output Formats:**
+- Text (ASCII art, tables)
+- Markdown (embeddable in docs)
+- HTML (standalone file with CSS)
+- JSON (machine-readable)
+
+**Example Text Report:**
+```
+mktodo Report - 2026-05-02
+═══════════════════════════════════════
+
+Summary
+───────
+Total Tasks:     45
+Open:           23 (51%)
+Completed:      22 (49%)
+FIXME:           3 (7%)
+
+By Project
+──────────
+TODO                  ████████░░  8/10  (80%)
+Lego project targets  ██████░░░░  6/10  (60%)
+  Technic             ████░░░░░░  4/10  (40%)
+  City                ████████░░  8/10  (80%)
+
+FIXME Items
+───────────
+1. [TODO] FIXME: Security vulnerability in parser
+2. [Lego.Technic] FIXME: Memory leak in TUI
+3. [City] fixme: Broken link in documentation
+```
+
+## Non-Functional Requirements
+
+### NFR-1: Performance
+
+**Priority:** MUST
+
+**Requirements:**
+- CLI commands respond < 100ms for files < 1MB
+- TUI updates render < 50ms
+- Support files up to 10MB efficiently
+- Memory usage < 50MB for typical operations
+- Parse 1000 TODO items < 500ms
+
+**Acceptance Criteria:**
+- Benchmark tests for critical operations
+- Performance regression tests in CI
+- Progress indicators for operations > 1s
+
+### NFR-2: Reliability
+
+**Priority:** MUST
+
+**Requirements:**
+- No data loss under any failure condition
+- Graceful degradation when file locked
+- Handle malformed markdown without crashing
+- Recover from invalid configuration
+- Exit codes follow Unix conventions (0=success, non-zero=error)
+
+**Error Exit Codes:**
+- `0` - Success
+- `1` - General error
+- `2` - Invalid usage/arguments
+- `3` - Configuration error
+- `4` - File system error
+- `5` - Git repository not found
+
+### NFR-3: Usability
+
+**Priority:** MUST
+
+**Requirements:**
+- First-time users can add TODO in < 2 minutes
+- Clear error messages with suggested fixes
+- Comprehensive `--help` output
+- Consistent flag naming across commands
+- Graceful handling of common mistakes
+
+**Acceptance Criteria:**
+- User documentation with examples
+- Error messages tested with users
+- Help text complete and accurate
+- Examples in help output
+
+### NFR-4: Maintainability
+
+**Priority:** MUST
+
+**Requirements:**
+- Code coverage ≥ 80%
+- All public APIs documented (godoc)
+- Pass `go vet` with no warnings
+- Pass `golangci-lint` with no errors
+- Follow Go standard project layout
+
+**Acceptance Criteria:**
+- Coverage reports in CI
+- Documentation coverage checks
+- Lint checks block merge
+- Code review required
+
+### NFR-5: Compatibility
+
+**Priority:** MUST
+
+**Requirements:**
+- Go 1.21 or later
+- Linux, macOS, Windows support
+- Terminal with minimum 80x24 display
+- UTF-8 file encoding
+- Git 2.0 or later
+
+**Acceptance Criteria:**
+- CI tests on multiple platforms
+- Terminal compatibility tests
+- UTF-8 handling tests
+
+### NFR-6: Accessibility
+
+**Priority:** SHOULD
+
+**Requirements:**
+- TUI works without color support
+- Keyboard-only navigation
+- Screen reader compatible error messages
+- Respect terminal capabilities (terminfo)
+- Support high-contrast mode
+
+**Acceptance Criteria:**
+- Test with `TERM=dumb`
+- Keyboard-only workflow testing
+- Color-blind user testing
+
+## Data Model
+
+### Project
+```go
+type Project struct {
+    Name     string      // Unique identifier (e.g., "lego", "technic")
+    Title    string      // Display title (e.g., "Lego project targets")
+    Parent   *Project    // Parent project or nil
+    Children []*Project  // Child projects
+    Level    int         // Header level (1-6)
+    Items    []TodoItem  // TODO items in this project
+}
+```
+
+### TodoItem
+```go
+type TodoItem struct {
+    Description string    // Item text
+    Done        bool      // Completion status
+    IsFIXME     bool      // High priority flag
+    LineNumber  int       // Line in source file
+    Project     *Project  // Owning project
+}
+```
+
+### Configuration
+```go
+type Config struct {
+    TodoFile string         // Relative path to markdown file
+    Projects []ProjectConfig // Project definitions
+}
+
+type ProjectConfig struct {
+    Name   string  // Project name
+    Title  string  // Display title
+    Parent *string // Parent name or nil
+}
+```
+
+### MarkdownDocument
+```go
+type MarkdownDocument struct {
+    FilePath string           // Path to markdown file
+    Sections []Section        // All sections in document
+    Projects map[string]*Project // Projects by name
+}
+
+type Section struct {
+    Type      SectionType  // Header, TODO, Other
+    Content   string       // Raw content
+    Line      int          // Starting line number
+    Project   *Project     // Associated project (if TODO section)
+}
+```
+
+## User Workflows
+
+### Workflow 1: First Time Setup
+
+1. User navigates to git repository
+2. User creates `.mktodo.yml` configuration
+3. User runs `mktodo add "First task"`
+4. Application prompts to create README.md
+5. User confirms, file created with TODO section
+6. Task added successfully
+
+### Workflow 2: Add Task via CLI
+
+1. User runs `mktodo add -p lego.technic "Build crane model"`
+2. Application validates project exists
+3. Application parses README.md
+4. Application finds "Technic" section
+5. Application appends new TODO item
+6. Application writes file atomically
+7. Success message displayed
+
+### Workflow 3: Interactive TUI Session
+
+1. User runs `mktodo tui`
+2. TUI displays projects and items
+3. User navigates to project with `↓`
+4. User presses `a` to add new item
+5. Inline editor opens
+6. User types description and presses Enter
+7. Item appears in list (unsaved)
+8. User presses `Esc` then `x` to save and quit
+9. File written, application exits
+
+### Workflow 4: Mark Multiple Items Done
+
+1. User runs `mktodo tui`
+2. User navigates to first item
+3. User presses `Space` to mark done
+4. User presses `↓` to next item
+5. User presses `Space` to mark done
+6. Repeat as needed
+7. User presses `Esc` then `s` to save
+8. Changes persisted to file
+
+### Workflow 5: Generate Report
+
+1. User runs `mktodo report --format html -o report.html`
+2. Application parses configuration
+3. Application reads markdown file
+4. Application calculates statistics
+5. Application generates HTML with charts
+6. File written to `report.html`
+7. Success message with file path displayed
+
+## Testing Strategy
+
+### Unit Tests
+- Configuration parsing and validation
+- Markdown parsing logic
+- Project hierarchy calculations
+- TODO item matching and filtering
+- File I/O operations (mocked)
+
+### Integration Tests
+- End-to-end command execution
+- Configuration + markdown parsing
+- Multi-project operations
+- Concurrent file access
+- Error recovery scenarios
+
+### TUI Tests
+- Bubbletea component testing
+- Keyboard event handling
+- State management
+- View rendering
+
+### Performance Tests
+- Large file parsing (10MB, 10K items)
+- Deep project nesting (6 levels)
+- Concurrent access (file locking)
+- Memory usage profiling
+
+### Regression Tests
+- Bug fixes from issues
+- Edge cases discovered
+- Backward compatibility
+
+## Error Handling
+
+### Error Categories
+
+**User Errors (Exit Code 2):**
+- Invalid command syntax
+- Non-existent project specified
+- TODO item not found
+- Invalid flags
+
+**Configuration Errors (Exit Code 3):**
+- Missing `.mktodo.yml`
+- Invalid YAML syntax
+- Invalid project references
+- Circular dependencies
+
+**File System Errors (Exit Code 4):**
+- Cannot read/write markdown file
+- Permission denied
+- Disk full
+- File locked by another process
+
+**Git Errors (Exit Code 5):**
+- Not in git repository
+- Cannot find git root
+
+**Example Error Messages:**
+```
+Error: TODO item not found
+Description: "Build crane model" not found in project "lego.technic"
+
+Did you mean one of these?
+  - Build train model
+  - Buy crane set
+  
+Use 'mktodo list -p lego.technic' to see all items.
+```
+
+## Security Considerations
+
+### Input Validation
+- Sanitize user input for markdown injection
+- Validate file paths (no directory traversal)
+- Limit description length (prevent DoS)
+- Validate YAML configuration strictly
+
+### File System
+- Check file permissions before writing
+- Use safe temp file patterns
+- Clean up temp files on error
+- Never follow symlinks without validation
+
+### Secrets
+- Never log file contents
+- Never commit sensitive data
+- Respect `.gitignore` patterns
+- Warn if adding credentials-like patterns
+
+## Deployment and Distribution
+
+### Binary Distribution
+- GitHub Releases with prebuilt binaries
+- Support: Linux (amd64, arm64), macOS (amd64, arm64), Windows (amd64)
+- Checksums for verification
+
+### Package Managers
+- Homebrew formula (macOS/Linux)
+- AUR package (Arch Linux)
+- APT/RPM packages (Debian/RedHat)
+- Chocolatey (Windows)
+- Go install: `go install github.com/jvzantvoort/mktodo@latest`
+
+### Installation Methods
+```bash
+# Homebrew
+brew install jvzantvoort/tap/mktodo
+
+# Go install
+go install github.com/jvzantvoort/mktodo@latest
+
+# Download binary
+curl -L https://github.com/jvzantvoort/mktodo/releases/download/v1.0.0/mktodo_linux_amd64 -o mktodo
+chmod +x mktodo
+```
+
+## Future Enhancements (Out of Scope for v1.0)
+
+### Potential Future Features
+- Multi-file support (multiple markdown files)
+- Tags and labels for TODO items
+- Due dates and reminders
+- Recurring tasks
+- Subtasks/nested TODO items
+- Export to other formats (Jira, GitHub Issues)
+- Synchronization between files
+- Web API for integrations
+- Plugins/extensions system
+- Custom themes for TUI
+- Search and filter by regex
+- Undo/redo functionality
+- Git commit integration (auto-commit on save)
+- Collaboration features (assign to users)
+- Time tracking
+- Attachments/links to files
+
+## Success Metrics
+
+### Adoption Metrics
+- GitHub stars > 100 in first 6 months
+- Weekly active users > 50
+- Package manager installs > 500
+
+### Quality Metrics
+- Bug reports < 5 per month after v1.0
+- Test coverage maintained ≥ 80%
+- All issues responded to within 7 days
+- Critical bugs fixed within 48 hours
+
+### Performance Metrics
+- Average command execution time < 100ms
+- TUI frame rate ≥ 20fps
+- Memory usage < 50MB for typical workflows
+- No memory leaks in 24-hour TUI session
+
+## Appendix A: Example Configurations
+
+### Minimal Configuration
+```yaml
+todofile: README.md
+projects:
+  - name: default
+    title: TODO
+    parent: nil
+```
+
+### Multi-Project Configuration
+```yaml
+todofile: README.md
+projects:
+  - name: default
+    title: TODO
+    parent: nil
+  - name: bugs
+    title: Bug Tracker
+    parent: nil
+  - name: features
+    title: Feature Requests
+    parent: nil
+  - name: frontend
+    title: Frontend
+    parent: features
+  - name: backend
+    title: Backend
+    parent: features
+```
+
+### Deep Nesting Configuration
+```yaml
+todofile: docs/TASKS.md
+projects:
+  - name: lego
+    title: Lego Projects
+    parent: nil
+  - name: technic
+    title: Technic Sets
+    parent: lego
+  - name: vehicles
+    title: Vehicles
+    parent: technic
+  - name: construction
+    title: Construction Vehicles
+    parent: vehicles
+```
+
+## Appendix B: Markdown Examples
+
+### Simple TODO
+```markdown
+# TODO
+
+- [ ] Task 1
+- [X] Task 2
+- [ ] FIXME: Critical issue
+```
+
+### Nested Projects
+```markdown
+# Lego Projects
+
+Some intro text about the Lego projects.
+
+## Technic Sets
+
+- [ ] Buy crane set
+- [ ] Build crane model
+- [X] Organize parts
+
+## City Sets
+
+- [ ] Build police station
+- [ ] FIXME: Missing pieces in fire truck set
+```
+
+### Mixed Content
+```markdown
+# My Project
+
+This is a regular markdown document with various content.
+
+## Overview
+
+Some documentation here.
+
+## TODO
+
+- [ ] Write tests
+- [ ] Update README
+- [X] Fix bug #123
+
+## Architecture
+
+More documentation.
+
+### Database Schema
+
+- Tables
+- Relationships
+
+## Bugs
+
+- [ ] FIXME: Memory leak in parser
+- [ ] Performance issue with large files
+
+## Conclusion
+
+Final thoughts.
+```
+
+## Appendix C: Glossary
+
+- **Project**: A named container for TODO items with a title and optional parent
+- **Topic**: Synonym for TODO item
+- **FIXME**: High-priority TODO item prefixed with "FIXME:" or "fixme:"
+- **Parent**: The project that contains another project in the hierarchy
+- **Level**: The markdown header level (1-6) corresponding to nesting depth
+- **Configuration**: The `.mktodo.yml` file defining projects and settings
+- **Git Root**: The top-level directory of the git repository containing `.git/`
+
+## Revision History
+
+| Version | Date       | Author | Changes                |
+|---------|------------|--------|------------------------|
+| 1.0     | 2026-05-02 | System | Initial specification  |

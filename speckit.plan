@@ -1,0 +1,1363 @@
+# mktodo Implementation Plan
+
+**Version:** 1.0  
+**Created:** 2026-05-02  
+**Status:** Active  
+**Project:** mktodo - Markdown TODO Management Tool
+
+## Project Overview
+
+**Goal:** Build a Go-based CLI and TUI application for managing TODO items in markdown files within git repositories.
+
+**Module:** `github.com/jvzantvoort/mktodo`
+
+**Core Dependencies:**
+- `github.com/spf13/viper` - Configuration management
+- `github.com/spf13/cobra` - CLI framework
+- `github.com/charmbracelet/bubbletea` - TUI framework
+
+**Key Principles:**
+- Code quality: Pass `go vet` and `golangci-lint`
+- Testing: Aim for 80%+ coverage
+- Simplicity: Avoid unnecessary complexity
+- UX consistency: Unix conventions, clear errors, accessible interface
+
+## Project Structure
+
+```
+mktodo/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml              # CI pipeline
+│       ├── release.yml         # Release automation
+│       └── lint.yml            # Linting checks
+├── cmd/
+│   ├── root.go                 # Root command setup
+│   ├── add.go                  # Add TODO command
+│   ├── remove.go               # Remove TODO command
+│   ├── done.go                 # Mark done command
+│   ├── list.go                 # List TODOs command
+│   ├── open.go                 # List open TODOs
+│   ├── report.go               # Generate reports
+│   └── tui.go                  # Interactive TUI
+├── internal/
+│   ├── config/
+│   │   ├── config.go           # Config struct and loader
+│   │   ├── validate.go         # Validation logic
+│   │   └── config_test.go
+│   ├── git/
+│   │   ├── repository.go       # Git repo detection
+│   │   └── repository_test.go
+│   ├── parser/
+│   │   ├── markdown.go         # Markdown parsing
+│   │   ├── writer.go           # Markdown writing
+│   │   ├── section.go          # Section handling
+│   │   └── parser_test.go
+│   ├── project/
+│   │   ├── project.go          # Project model
+│   │   ├── hierarchy.go        # Hierarchy building
+│   │   └── project_test.go
+│   ├── todo/
+│   │   ├── item.go             # TodoItem model
+│   │   ├── operations.go       # CRUD operations
+│   │   ├── matcher.go          # Fuzzy matching
+│   │   └── todo_test.go
+│   └── tui/
+│       ├── model.go            # Bubbletea model
+│       ├── update.go           # Update handlers
+│       ├── view.go             # View rendering
+│       ├── components/
+│       │   ├── list.go         # List component
+│       │   ├── editor.go       # Inline editor
+│       │   ├── menu.go         # Menu popup
+│       │   └── confirm.go      # Confirmation dialog
+│       └── tui_test.go
+├── messages/
+│   ├── errors.txt              # Error messages
+│   ├── help.txt                # Help text
+│   └── messages.go             # go:embed loader
+├── pkg/                        # Public API (if needed)
+├── testdata/
+│   ├── configs/                # Test configurations
+│   └── markdown/               # Test markdown files
+├── .mktodo.yml                 # Project's own config
+├── .golangci.yml               # Linter configuration
+├── go.mod
+├── go.sum
+├── main.go                     # Entry point
+├── Makefile                    # Build tasks
+└── README.md
+```
+
+## Implementation Phases
+
+### Phase 0: Project Setup (Week 1)
+
+**Goal:** Establish project foundation with proper tooling and structure.
+
+**Tasks:**
+
+#### 0.1: Initialize Go Module
+- [ ] Run `go mod init github.com/jvzantvoort/mktodo`
+- [ ] Create basic directory structure
+- [ ] Create `main.go` with placeholder
+- [ ] Initialize git repository
+- [ ] Create `.gitignore` for Go
+
+**Acceptance:**
+- Module initialized and importable
+- Directory structure matches plan
+- Git repository ready
+
+#### 0.2: Configure Development Tools
+- [ ] Create `.golangci.yml` with strict rules
+- [ ] Create `Makefile` with targets: build, test, lint, clean
+- [ ] Set up pre-commit hooks (optional)
+- [ ] Document development setup in README
+
+**Acceptance:**
+- `make lint` runs golangci-lint successfully
+- `make test` runs tests
+- `make build` produces binary
+
+#### 0.3: Setup CI/CD Pipeline
+- [ ] Create `.github/workflows/ci.yml`
+  - Run tests on push/PR
+  - Run linters
+  - Check code coverage
+  - Test on Linux, macOS, Windows
+- [ ] Create `.github/workflows/lint.yml`
+  - Run golangci-lint
+  - Check formatting with gofmt
+- [ ] Create `.github/workflows/release.yml`
+  - Build binaries for multiple platforms
+  - Create GitHub releases
+
+**Acceptance:**
+- CI runs on every push
+- All checks must pass before merge
+- Failed builds block PRs
+
+#### 0.4: Install Dependencies
+- [ ] Install Cobra: `go get github.com/spf13/cobra@latest`
+- [ ] Install Viper: `go get github.com/spf13/viper@latest`
+- [ ] Install Bubbletea: `go get github.com/charmbracelet/bubbletea@latest`
+- [ ] Run `go mod tidy`
+
+**Acceptance:**
+- All dependencies in `go.mod`
+- `go build` succeeds
+- No version conflicts
+
+---
+
+### Phase 1: Core Foundation (Week 2-3)
+
+**Goal:** Implement basic models, git detection, and configuration loading.
+
+**Tasks:**
+
+#### 1.1: Git Repository Detection
+**Priority:** MUST  
+**File:** `internal/git/repository.go`
+
+- [ ] Implement `FindGitRoot()` function
+  - Traverse parent directories looking for `.git`
+  - Return absolute path to git root
+  - Return error if not in git repo
+- [ ] Write unit tests
+- [ ] Add helpful error messages
+
+```go
+package git
+
+type Repository struct {
+    Root string
+}
+
+func FindRepository() (*Repository, error)
+func (r *Repository) ConfigPath() string // Returns .mktodo.yml path
+```
+
+**Acceptance:**
+- Detects git root correctly
+- Error message guides user when not in repo
+- Tests cover edge cases (root directory, nested repos)
+
+#### 1.2: Configuration Models
+**Priority:** MUST  
+**File:** `internal/config/config.go`
+
+- [ ] Define `Config` struct
+- [ ] Define `ProjectConfig` struct
+- [ ] Implement YAML unmarshaling
+
+```go
+package config
+
+type Config struct {
+    TodoFile string          `yaml:"todofile"`
+    Projects []ProjectConfig `yaml:"projects"`
+}
+
+type ProjectConfig struct {
+    Name   string  `yaml:"name"`
+    Title  string  `yaml:"title"`
+    Parent *string `yaml:"parent"` // pointer for nil handling
+}
+```
+
+**Acceptance:**
+- Structs unmarshal from YAML correctly
+- Handles nil parent values
+- Clear struct tags for YAML
+
+#### 1.3: Configuration Loading
+**Priority:** MUST  
+**File:** `internal/config/config.go`
+
+- [ ] Implement `Load(path string) (*Config, error)`
+  - Use Viper to load YAML
+  - Unmarshal to Config struct
+  - Return errors for missing file
+- [ ] Write unit tests with test fixtures
+- [ ] Support default values (todofile: README.md)
+
+**Acceptance:**
+- Loads valid configurations
+- Returns clear errors for invalid YAML
+- Tests use `testdata/configs/` fixtures
+
+#### 1.4: Configuration Validation
+**Priority:** MUST  
+**File:** `internal/config/validate.go`
+
+- [ ] Implement `Validate() error`
+  - Check all required fields present
+  - Validate parent references exist
+  - Detect circular dependencies
+  - Validate nesting depth ≤ 6
+- [ ] Write comprehensive tests
+- [ ] Provide actionable error messages
+
+**Acceptance:**
+- Catches all invalid configurations
+- Error messages suggest fixes
+- Test coverage ≥ 90%
+
+#### 1.5: Project Hierarchy
+**Priority:** MUST  
+**File:** `internal/project/hierarchy.go`
+
+- [ ] Implement `Project` model
+- [ ] Implement `BuildHierarchy(config)` function
+  - Create project tree from config
+  - Calculate header levels
+  - Link parent-child relationships
+- [ ] Implement `FindByPath(path string)` for dotted notation
+- [ ] Write unit tests
+
+```go
+package project
+
+type Project struct {
+    Name     string
+    Title    string
+    Parent   *Project
+    Children []*Project
+    Level    int
+    Items    []*todo.Item
+}
+
+func BuildHierarchy(cfg *config.Config) (map[string]*Project, error)
+func FindByPath(projects map[string]*Project, path string) (*Project, error)
+```
+
+**Acceptance:**
+- Correctly builds project tree
+- Calculates header levels (1-6)
+- Dotted paths resolve correctly (e.g., "lego.technic")
+- Test coverage ≥ 85%
+
+---
+
+### Phase 2: Markdown Parsing (Week 4-5)
+
+**Goal:** Parse and write markdown files while preserving all non-TODO content.
+
+**Tasks:**
+
+#### 2.1: TODO Item Model
+**Priority:** MUST  
+**File:** `internal/todo/item.go`
+
+- [ ] Define `Item` struct
+- [ ] Implement FIXME detection
+- [ ] Implement checkbox parsing
+
+```go
+package todo
+
+type Item struct {
+    Description string
+    Done        bool
+    IsFIXME     bool
+    LineNumber  int
+    Project     *project.Project
+}
+
+func Parse(line string) (*Item, error)
+func (i *Item) String() string // Format as markdown
+```
+
+**Acceptance:**
+- Parses all checkbox variations: `- [ ]`, `* [x]`, `+ [X]`
+- Detects FIXME prefix (case-insensitive)
+- Round-trip: Parse then String returns equivalent
+
+#### 2.2: Markdown Section Parser
+**Priority:** MUST  
+**File:** `internal/parser/section.go`
+
+- [ ] Define `Section` types (Header, TODO, Other)
+- [ ] Implement header level detection
+- [ ] Implement section splitting logic
+
+```go
+package parser
+
+type SectionType int
+
+const (
+    SectionHeader SectionType = iota
+    SectionTODO
+    SectionOther
+)
+
+type Section struct {
+    Type    SectionType
+    Content string
+    Line    int
+    Project *project.Project
+}
+
+func SplitSections(content string) []Section
+```
+
+**Acceptance:**
+- Splits markdown into sections correctly
+- Preserves exact whitespace and formatting
+- Identifies header levels accurately
+
+#### 2.3: Markdown Document Parser
+**Priority:** MUST  
+**File:** `internal/parser/markdown.go`
+
+- [ ] Implement `Document` struct
+- [ ] Implement `Parse(filePath, projects)` function
+  - Read markdown file
+  - Split into sections
+  - Match headers to projects
+  - Extract TODO items from sections
+- [ ] Preserve all non-TODO content
+- [ ] Write comprehensive tests
+
+```go
+package parser
+
+type Document struct {
+    FilePath string
+    Sections []Section
+    Projects map[string]*project.Project
+}
+
+func Parse(filePath string, projects map[string]*project.Project) (*Document, error)
+func (d *Document) FindProject(name string) (*project.Project, error)
+```
+
+**Acceptance:**
+- Parses complex markdown correctly
+- All non-TODO content preserved exactly
+- Headers matched to projects
+- TODO items extracted with line numbers
+- Test coverage ≥ 85%
+
+#### 2.4: Markdown Writer
+**Priority:** MUST  
+**File:** `internal/parser/writer.go`
+
+- [ ] Implement `Write(filePath string) error`
+  - Reconstruct markdown from sections
+  - Preserve formatting
+  - Use atomic write (temp file + rename)
+  - Preserve file permissions
+- [ ] Handle line ending preservation (LF/CRLF)
+- [ ] Write tests
+
+**Acceptance:**
+- Atomic writes (no data loss on failure)
+- Permissions preserved
+- Line endings preserved
+- Round-trip: Parse → Modify → Write → Parse matches
+- Test coverage ≥ 80%
+
+---
+
+### Phase 3: CLI Commands (Week 6-7)
+
+**Goal:** Implement all CLI commands with Cobra.
+
+**Tasks:**
+
+#### 3.1: Root Command Setup
+**Priority:** MUST  
+**File:** `cmd/root.go`
+
+- [ ] Initialize Cobra root command
+- [ ] Add global flags: `--config`, `--help`, `--version`
+- [ ] Implement version command
+- [ ] Setup Viper integration for config
+- [ ] Add usage examples
+
+**Acceptance:**
+- `mktodo --help` shows usage
+- `mktodo --version` shows version
+- Global flags work on all subcommands
+
+#### 3.2: Add Command
+**Priority:** MUST  
+**File:** `cmd/add.go`
+
+- [ ] Implement `add <description>` command
+- [ ] Add flags: `-p/--project`, `-y/--yes`
+- [ ] Workflow:
+  1. Load config
+  2. Find git root
+  3. Parse markdown
+  4. Find project
+  5. Append TODO item
+  6. Write file
+- [ ] Prompt if file doesn't exist
+- [ ] Write integration tests
+
+**Acceptance:**
+- Adds TODO to default project
+- Adds TODO to nested project with `-p lego.technic`
+- Creates file with confirmation if missing
+- Error handling for invalid project
+- Help text with examples
+
+#### 3.3: Remove Command
+**Priority:** MUST  
+**File:** `cmd/remove.go`
+
+- [ ] Implement `remove <description>` command
+- [ ] Add aliases: `rm`, `destroy`
+- [ ] Add flags: `-p/--project`, `-y/--yes`
+- [ ] Implement fuzzy matching for description
+- [ ] Confirmation prompt (unless `--yes`)
+- [ ] Write integration tests
+
+**Acceptance:**
+- Removes TODO by exact match
+- Fuzzy matching suggests alternatives
+- Confirmation required (unless `--yes`)
+- Error if item not found
+- Help text with examples
+
+#### 3.4: Done Command
+**Priority:** MUST  
+**File:** `cmd/done.go`
+
+- [ ] Implement `done <description>` command
+- [ ] Add alias: `complete`
+- [ ] Add flag: `-p/--project`
+- [ ] Toggle checkbox: `[ ]` → `[X]`
+- [ ] Write integration tests
+
+**Acceptance:**
+- Marks TODO as done
+- Works with partial description match
+- Error if item not found
+- Help text with examples
+
+#### 3.5: List Command
+**Priority:** MUST  
+**File:** `cmd/list.go`
+
+- [ ] Implement `list` command
+- [ ] Add alias: `ls`
+- [ ] Add flags: `-p/--project`, `-o/--open`, `-d/--done`, `--format`
+- [ ] Implement filters (project, status)
+- [ ] Implement sorting (FIXME first)
+- [ ] Implement output formats: text, JSON, YAML
+- [ ] Write integration tests
+
+**Output format (text):**
+```
+TODO (3 open, 1 done)
+  [ ] Task 1
+  [ ] FIXME: Critical bug
+  [X] Completed task
+
+Lego project targets (2 open, 1 done)
+  Technic (2 open)
+    [ ] Build crane
+    [ ] Buy parts
+```
+
+**Acceptance:**
+- Lists all TODOs by default
+- Filters work correctly
+- FIXME items appear first
+- Output formats work (text, JSON, YAML)
+- Help text with examples
+
+#### 3.6: Open Command
+**Priority:** SHOULD  
+**File:** `cmd/open.go`
+
+- [ ] Implement as wrapper around `list --open`
+- [ ] Add flag: `-p/--project`
+
+**Acceptance:**
+- Shows only open items
+- Equivalent to `list --open`
+
+#### 3.7: Report Command
+**Priority:** SHOULD  
+**File:** `cmd/report.go`
+
+- [ ] Implement `report` command
+- [ ] Add flags: `--format`, `-o/--output`
+- [ ] Calculate statistics (total, open, done, FIXME)
+- [ ] Implement text format with ASCII art
+- [ ] Implement markdown format
+- [ ] Implement HTML format (basic)
+- [ ] Implement JSON format
+- [ ] Write tests
+
+**Acceptance:**
+- Generates report with statistics
+- All formats work correctly
+- Output to file with `-o` flag
+- Help text with examples
+
+---
+
+### Phase 4: Messages Package (Week 7)
+
+**Goal:** Centralize all UI text using go:embed.
+
+**Tasks:**
+
+#### 4.1: Message Files
+**Priority:** SHOULD  
+**Files:** `messages/*.txt`
+
+- [ ] Create `messages/errors.txt` with error templates
+- [ ] Create `messages/help.txt` with help text
+- [ ] Create `messages/prompts.txt` with user prompts
+- [ ] Use consistent formatting
+
+**Example `errors.txt`:**
+```
+# Git Repository Errors
+ERR_NOT_IN_GIT_REPO=Error: Not in a git repository
+Run 'git init' to initialize a repository, or navigate to an existing repository.
+
+# Configuration Errors
+ERR_CONFIG_NOT_FOUND=Error: Configuration file not found
+Create .mktodo.yml in the repository root.
+...
+```
+
+#### 4.2: Message Loader
+**Priority:** SHOULD  
+**File:** `messages/messages.go`
+
+- [ ] Implement go:embed for text files
+- [ ] Implement message lookup by key
+- [ ] Implement template substitution
+- [ ] Write tests
+
+```go
+package messages
+
+import _ "embed"
+
+//go:embed errors.txt
+var errorsText string
+
+//go:embed help.txt
+var helpText string
+
+func Get(key string, args ...interface{}) string
+```
+
+**Acceptance:**
+- All messages loaded via go:embed
+- Template substitution works
+- Fallback for missing keys
+
+#### 4.3: Integrate Messages
+**Priority:** SHOULD  
+
+- [ ] Replace hardcoded strings in commands
+- [ ] Replace hardcoded errors
+- [ ] Update tests
+
+**Acceptance:**
+- No hardcoded user-facing strings in code
+- All messages from messages package
+
+---
+
+### Phase 5: TUI Implementation (Week 8-10)
+
+**Goal:** Build interactive terminal UI with Bubbletea.
+
+**Tasks:**
+
+#### 5.1: TUI Model Setup
+**Priority:** MUST  
+**File:** `internal/tui/model.go`
+
+- [ ] Define Bubbletea model
+- [ ] Initialize with config and document
+- [ ] Track state (selected item, dirty flag, clipboard)
+
+```go
+package tui
+
+type Model struct {
+    config    *config.Config
+    doc       *parser.Document
+    projects  []*project.Project
+    selected  int
+    dirty     bool
+    clipboard *todo.Item
+    width     int
+    height    int
+}
+
+func New(cfg *config.Config, doc *parser.Document) Model
+```
+
+**Acceptance:**
+- Model initializes with data
+- State tracking works
+
+#### 5.2: View Rendering
+**Priority:** MUST  
+**File:** `internal/tui/view.go`
+
+- [ ] Implement main layout (header, projects, items, footer)
+- [ ] Render project tree
+- [ ] Render TODO items
+- [ ] Highlight FIXME items
+- [ ] Show dirty state indicator
+- [ ] Handle terminal resize
+
+**Acceptance:**
+- Layout renders correctly
+- Projects and items displayed
+- Visual feedback for state
+- Graceful resize handling
+
+#### 5.3: Navigation
+**Priority:** MUST  
+**File:** `internal/tui/update.go`
+
+- [ ] Implement keyboard navigation (↑/↓, j/k)
+- [ ] Implement pane switching (←/→, h/l, Tab)
+- [ ] Implement project expand/collapse (Enter)
+- [ ] Update selection state
+
+**Acceptance:**
+- All navigation keys work
+- Selection updates correctly
+- Visual feedback for selection
+
+#### 5.4: TODO Operations
+**Priority:** MUST  
+**File:** `internal/tui/update.go`
+
+- [ ] Implement toggle done (Space)
+- [ ] Implement delete (d) with confirmation
+- [ ] Implement move up/down (-/+)
+- [ ] Implement cut/paste (x/p)
+- [ ] Update dirty flag
+
+**Acceptance:**
+- All operations work correctly
+- Confirmation for destructive actions
+- Dirty flag updates
+
+#### 5.5: Editing Component
+**Priority:** MUST  
+**File:** `internal/tui/components/editor.go`
+
+- [ ] Implement inline editor for adding/editing
+- [ ] Support text input
+- [ ] Support Enter to confirm, Esc to cancel
+- [ ] Integrate with model
+
+**Acceptance:**
+- Can add new TODO items
+- Can edit existing items
+- Input validation works
+
+#### 5.6: Menu Component
+**Priority:** MUST  
+**File:** `internal/tui/components/menu.go`
+
+- [ ] Implement Esc menu popup
+- [ ] Options: quit, save, save & quit
+- [ ] Handle confirmation for unsaved changes
+- [ ] Integrate with model
+
+**Acceptance:**
+- Menu displays on Esc
+- All options work
+- Confirmation when dirty
+
+#### 5.7: File Operations
+**Priority:** MUST  
+**File:** `internal/tui/update.go`
+
+- [ ] Implement save operation
+- [ ] Update document with changes
+- [ ] Write to file
+- [ ] Clear dirty flag
+- [ ] Show feedback message
+
+**Acceptance:**
+- Save persists changes
+- Dirty flag clears
+- User feedback shown
+
+#### 5.8: Help Overlay
+**Priority:** SHOULD  
+**File:** `internal/tui/components/help.go`
+
+- [ ] Implement help overlay (?)
+- [ ] List all keybindings
+- [ ] Dismiss on any key
+
+**Acceptance:**
+- Help displays all shortcuts
+- Clear and readable
+
+---
+
+### Phase 6: Testing & Quality (Week 11-12)
+
+**Goal:** Achieve high test coverage and quality standards.
+
+**Tasks:**
+
+#### 6.1: Unit Test Coverage
+**Priority:** MUST  
+
+- [ ] Write tests for all packages
+- [ ] Aim for 80%+ coverage
+- [ ] Use table-driven tests where appropriate
+- [ ] Mock external dependencies
+
+**Target coverage per package:**
+- config: ≥ 90%
+- git: ≥ 85%
+- parser: ≥ 85%
+- project: ≥ 85%
+- todo: ≥ 85%
+- tui: ≥ 70% (harder to test)
+
+**Acceptance:**
+- Overall coverage ≥ 80%
+- Coverage report in CI
+- All critical paths tested
+
+#### 6.2: Integration Tests
+**Priority:** MUST  
+**File:** `tests/integration_test.go`
+
+- [ ] Test end-to-end workflows
+  - Add → List → Done → List
+  - Add to nested project
+  - Remove with confirmation
+  - TUI operations
+- [ ] Use temporary test repos
+- [ ] Test error scenarios
+
+**Acceptance:**
+- All main workflows tested
+- Error cases covered
+- Tests isolated (no side effects)
+
+#### 6.3: Test Fixtures
+**Priority:** MUST  
+**Dir:** `testdata/`
+
+- [ ] Create test configurations
+- [ ] Create test markdown files
+- [ ] Create expected outputs
+- [ ] Document test data
+
+**Acceptance:**
+- Comprehensive test data
+- Tests use fixtures consistently
+- Fixtures documented
+
+#### 6.4: Linting & Formatting
+**Priority:** MUST  
+
+- [ ] Configure golangci-lint strictly
+- [ ] Enable all relevant linters
+- [ ] Fix all lint issues
+- [ ] Run gofmt on all files
+
+**Enabled linters:**
+- govet
+- errcheck
+- staticcheck
+- gosimple
+- ineffassign
+- unused
+- gocyclo (complexity limit: 10)
+- gofmt
+- goimports
+
+**Acceptance:**
+- `make lint` passes with no warnings
+- All code formatted consistently
+- Linting runs in CI
+
+#### 6.5: Documentation
+**Priority:** MUST  
+
+- [ ] Add godoc comments to all public APIs
+- [ ] Document complex algorithms
+- [ ] Update README with usage examples
+- [ ] Create CONTRIBUTING.md
+- [ ] Create examples/ directory
+
+**Acceptance:**
+- All public functions documented
+- README complete and accurate
+- Examples run successfully
+
+---
+
+### Phase 7: Polish & Release (Week 13-14)
+
+**Goal:** Finalize application and prepare for release.
+
+**Tasks:**
+
+#### 7.1: Error Handling Review
+**Priority:** MUST  
+
+- [ ] Review all error messages
+- [ ] Ensure errors suggest fixes
+- [ ] Add exit codes (0-5)
+- [ ] Test error scenarios
+
+**Acceptance:**
+- All errors clear and actionable
+- Correct exit codes
+- User testing validates messages
+
+#### 7.2: Performance Testing
+**Priority:** MUST  
+
+- [ ] Benchmark critical operations
+- [ ] Test with large files (10MB, 10K items)
+- [ ] Test deep nesting (6 levels)
+- [ ] Profile memory usage
+- [ ] Add performance tests to CI
+
+**Targets:**
+- CLI commands: < 100ms for < 1MB files
+- TUI rendering: < 50ms per frame
+- Memory usage: < 50MB typical
+
+**Acceptance:**
+- Performance targets met
+- Benchmarks in CI
+- No memory leaks
+
+#### 7.3: Cross-Platform Testing
+**Priority:** MUST  
+
+- [ ] Test on Linux (Ubuntu, Arch)
+- [ ] Test on macOS (Intel, Apple Silicon)
+- [ ] Test on Windows
+- [ ] Test different terminals (xterm, iTerm2, Windows Terminal)
+- [ ] Test with TERM=dumb (no color)
+
+**Acceptance:**
+- Works on all platforms
+- Terminal compatibility verified
+- Graceful degradation without color
+
+#### 7.4: User Documentation
+**Priority:** MUST  
+
+- [ ] Complete README with full examples
+- [ ] Add screenshots/GIFs of TUI
+- [ ] Create CHANGELOG.md
+- [ ] Add LICENSE (choose appropriate)
+- [ ] Create man page (optional)
+
+**Acceptance:**
+- README comprehensive
+- All features documented
+- Visual examples included
+
+#### 7.5: Build & Release Process
+**Priority:** MUST  
+
+- [ ] Setup goreleaser for multi-platform builds
+- [ ] Create release workflow in GitHub Actions
+- [ ] Generate checksums for binaries
+- [ ] Tag version v1.0.0
+- [ ] Create GitHub release
+
+**Platforms:**
+- linux/amd64
+- linux/arm64
+- darwin/amd64
+- darwin/arm64
+- windows/amd64
+
+**Acceptance:**
+- Release automation works
+- Binaries built for all platforms
+- Checksums generated
+- GitHub release created
+
+#### 7.6: Package Distribution
+**Priority:** SHOULD  
+
+- [ ] Create Homebrew formula
+- [ ] Submit to Homebrew tap
+- [ ] Create installation script
+- [ ] Document installation methods
+
+**Acceptance:**
+- `brew install` works
+- `go install` works
+- Installation docs complete
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+**Coverage Target:** ≥ 80%
+
+- Config parsing and validation
+- Markdown parsing and writing
+- Project hierarchy building
+- TODO item operations
+- Git repository detection
+- Each package has `*_test.go` files
+
+### Integration Tests
+**Coverage Target:** All major workflows
+
+- End-to-end command execution
+- Multi-project scenarios
+- Error recovery
+- File operations
+- Concurrent access handling
+
+### TUI Tests
+**Coverage Target:** ≥ 70%
+
+- Bubbletea model updates
+- View rendering
+- Keyboard event handling
+- Component interactions
+
+### Performance Tests
+**Coverage Target:** Critical operations
+
+- Large file parsing (10MB)
+- Many items (10K TODO items)
+- Deep nesting (6 levels)
+- Memory profiling
+- Concurrent operations
+
+### Manual Tests
+- Terminal compatibility
+- User acceptance testing
+- Cross-platform verification
+- Accessibility testing
+
+---
+
+## Quality Gates
+
+### Pre-Commit
+- Code formatted with gofmt
+- Imports organized with goimports
+- No obvious errors
+
+### Pull Request
+- All tests pass
+- Lint checks pass
+- Code coverage ≥ 80%
+- Peer review approved
+- No security vulnerabilities
+
+### Release
+- All tests pass on all platforms
+- Performance benchmarks met
+- Documentation complete
+- User acceptance testing passed
+- Security audit completed
+
+---
+
+## Risk Management
+
+### Technical Risks
+
+**Risk:** Markdown parsing edge cases  
+**Impact:** High  
+**Mitigation:** Comprehensive test suite, fuzzing, user testing  
+**Contingency:** Iterative improvements based on bug reports
+
+**Risk:** TUI rendering issues on different terminals  
+**Impact:** Medium  
+**Mitigation:** Test on multiple terminals, graceful degradation  
+**Contingency:** Document terminal requirements, provide CLI fallback
+
+**Risk:** Performance with large files  
+**Impact:** Medium  
+**Mitigation:** Performance testing, profiling, optimization  
+**Contingency:** Document file size limits, provide progress indicators
+
+**Risk:** Concurrent file access  
+**Impact:** Low  
+**Mitigation:** File locking, atomic writes, error handling  
+**Contingency:** Clear error messages, retry logic
+
+### Schedule Risks
+
+**Risk:** Scope creep  
+**Impact:** High  
+**Mitigation:** Strict adherence to v1.0 scope, defer features to future  
+**Contingency:** Cut "SHOULD" features if needed
+
+**Risk:** TUI complexity  
+**Impact:** Medium  
+**Mitigation:** Start early, incremental development, reference examples  
+**Contingency:** Release CLI-only version first
+
+### Quality Risks
+
+**Risk:** Insufficient test coverage  
+**Impact:** High  
+**Mitigation:** Test-driven development, coverage gates in CI  
+**Contingency:** Extended testing phase, delayed release
+
+**Risk:** Poor user experience  
+**Impact:** Medium  
+**Mitigation:** User testing, clear documentation, helpful errors  
+**Contingency:** Iterate based on feedback
+
+---
+
+## Development Workflow
+
+### Branch Strategy
+- `main` - stable, releasable code
+- `develop` - integration branch
+- `feature/*` - feature branches
+- `bugfix/*` - bug fix branches
+- `release/*` - release preparation
+
+### Commit Messages
+Follow Conventional Commits:
+- `feat: add list command`
+- `fix: handle missing config file`
+- `docs: update README with examples`
+- `test: add parser integration tests`
+- `refactor: simplify project hierarchy logic`
+
+### Code Review Process
+1. Create PR from feature branch to develop
+2. Automated checks run (tests, lint, coverage)
+3. Peer review required
+4. Address feedback
+5. Squash and merge when approved
+
+### Release Process
+1. Create release branch from develop
+2. Update version numbers
+3. Update CHANGELOG
+4. Run full test suite
+5. Build binaries for all platforms
+6. Create GitHub release with notes
+7. Merge to main and tag
+8. Update package managers
+
+---
+
+## Milestones
+
+### Milestone 1: Foundation Complete (Week 3)
+- ✓ Project setup
+- ✓ CI/CD pipeline
+- ✓ Git detection
+- ✓ Configuration loading and validation
+- ✓ Project hierarchy
+
+**Deliverable:** Can load config and build project tree
+
+### Milestone 2: Core Functionality (Week 5)
+- ✓ Markdown parsing
+- ✓ Markdown writing
+- ✓ TODO item operations
+- ✓ File operations
+
+**Deliverable:** Can parse and modify markdown files programmatically
+
+### Milestone 3: CLI Complete (Week 7)
+- ✓ All CLI commands implemented
+- ✓ Help text and examples
+- ✓ Error handling
+- ✓ Messages package
+
+**Deliverable:** Functional CLI tool ready for use
+
+### Milestone 4: TUI Complete (Week 10)
+- ✓ Interactive TUI
+- ✓ All operations available
+- ✓ Help and menus
+- ✓ File save/load
+
+**Deliverable:** Full-featured interactive interface
+
+### Milestone 5: Quality Assurance (Week 12)
+- ✓ Test coverage ≥ 80%
+- ✓ Integration tests
+- ✓ Linting passes
+- ✓ Documentation complete
+
+**Deliverable:** Production-ready code quality
+
+### Milestone 6: Release 1.0 (Week 14)
+- ✓ Performance validated
+- ✓ Cross-platform tested
+- ✓ Binaries built
+- ✓ Released on GitHub
+
+**Deliverable:** v1.0.0 released and available
+
+---
+
+## Success Metrics
+
+### Development Metrics
+- Test coverage ≥ 80%
+- Zero lint warnings
+- All CI checks green
+- Code review approval rate > 90%
+- Build time < 2 minutes
+
+### Quality Metrics
+- Bug count < 5 critical bugs post-release
+- Mean time to fix critical bugs < 48 hours
+- Documentation coverage 100%
+- User-reported issues response time < 7 days
+
+### Performance Metrics
+- CLI commands < 100ms (files < 1MB)
+- TUI frame rate ≥ 20fps
+- Memory usage < 50MB
+- Binary size < 10MB
+
+### Adoption Metrics (6 months post-release)
+- GitHub stars > 100
+- Weekly active users > 50
+- Package installs > 500
+- Community contributions > 5 PRs
+
+---
+
+## Future Roadmap (Post v1.0)
+
+### v1.1: Enhanced Features
+- Fuzzy search for TODO items
+- Undo/redo functionality
+- Custom themes for TUI
+- Batch operations
+- Import/export formats
+
+### v1.2: Advanced Organization
+- Tags and labels
+- Due dates
+- Priority levels (beyond FIXME)
+- Subtasks/nested TODO items
+- Multi-file support
+
+### v1.3: Integration & Automation
+- Git commit integration
+- Pre-commit hooks
+- GitHub Issues sync
+- Jira export
+- API for integrations
+
+### v2.0: Collaboration
+- Multi-user support
+- Assignments
+- Comments and discussions
+- Activity history
+- Conflict resolution
+
+---
+
+## Appendix A: Development Commands
+
+### Common Tasks
+```bash
+# Build binary
+make build
+
+# Run tests
+make test
+
+# Run linter
+make lint
+
+# Run all checks (test + lint)
+make check
+
+# Generate coverage report
+make coverage
+
+# Clean build artifacts
+make clean
+
+# Install locally
+make install
+
+# Run TUI
+./mktodo tui
+
+# Run specific test
+go test -v -run TestConfigValidation ./internal/config
+
+# Run benchmarks
+go test -bench=. ./internal/parser
+
+# Profile CPU
+go test -cpuprofile=cpu.prof -bench=. ./internal/parser
+
+# Profile memory
+go test -memprofile=mem.prof -bench=. ./internal/parser
+```
+
+### Git Workflow
+```bash
+# Create feature branch
+git checkout -b feature/list-command
+
+# Commit changes
+git add .
+git commit -m "feat: implement list command"
+
+# Update from develop
+git fetch origin
+git rebase origin/develop
+
+# Push feature branch
+git push -u origin feature/list-command
+
+# Create PR (use GitHub CLI)
+gh pr create --title "Add list command" --body "Implements list command with filters"
+```
+
+---
+
+## Appendix B: Example .mktodo.yml for Project
+
+The mktodo project will use its own TODO tracking:
+
+```yaml
+todofile: README.md
+projects:
+  - name: default
+    title: TODO
+    parent: nil
+  - name: cli
+    title: CLI Development
+    parent: nil
+  - name: tui
+    title: TUI Development
+    parent: nil
+  - name: testing
+    title: Testing
+    parent: nil
+  - name: docs
+    title: Documentation
+    parent: nil
+```
+
+---
+
+## Appendix C: Key Dependencies
+
+### Direct Dependencies
+```
+github.com/spf13/cobra      v1.8+    # CLI framework
+github.com/spf13/viper      v1.18+   # Configuration
+github.com/charmbracelet/bubbletea v0.25+ # TUI framework
+```
+
+### Development Dependencies
+```
+github.com/golangci/golangci-lint   # Linting
+github.com/goreleaser/goreleaser    # Release automation
+```
+
+### Indirect Dependencies
+- github.com/spf13/pflag (from Cobra)
+- github.com/charmbracelet/lipgloss (from Bubbletea)
+- gopkg.in/yaml.v3 (from Viper)
+
+---
+
+## Appendix D: Resources
+
+### Documentation
+- Go Standard Library: https://pkg.go.dev/std
+- Cobra Documentation: https://cobra.dev/
+- Viper Documentation: https://github.com/spf13/viper
+- Bubbletea Tutorial: https://github.com/charmbracelet/bubbletea/tree/master/tutorials
+
+### Examples
+- Bubbletea Examples: https://github.com/charmbracelet/bubbletea/tree/master/examples
+- Cobra Examples: https://github.com/spf13/cobra/tree/main/doc
+- Go Project Layout: https://github.com/golang-standards/project-layout
+
+### Tools
+- golangci-lint: https://golangci-lint.run/
+- goreleaser: https://goreleaser.com/
+- GitHub Actions: https://docs.github.com/en/actions
+
+---
+
+## Revision History
+
+| Version | Date       | Author | Changes                          |
+|---------|------------|--------|----------------------------------|
+| 1.0     | 2026-05-02 | System | Initial implementation plan      |
+
+---
+
+**End of Implementation Plan**

@@ -1,0 +1,1442 @@
+# mktodo Tasks
+
+**Generated:** 2026-05-02  
+**Project:** mktodo - Markdown TODO Management Tool  
+**Status:** Ready for implementation
+
+This document contains all actionable tasks extracted from the implementation plan, organized by phase and priority.
+
+---
+
+## Phase 0: Project Setup
+
+### 0.1: Initialize Go Module
+**Priority:** MUST  
+**Estimated Effort:** 1 hour  
+**Dependencies:** None
+
+- [ ] Run `go mod init github.com/jvzantvoort/mktodo`
+- [ ] Create directory structure (cmd, internal, messages, testdata)
+- [ ] Create `main.go` with basic structure
+- [ ] Initialize git repository (`git init`)
+- [ ] Create `.gitignore` for Go projects
+
+**Acceptance Criteria:**
+- Module imports successfully
+- Directory structure matches plan
+- Git initialized with proper gitignore
+
+---
+
+### 0.2: Configure Development Tools
+**Priority:** MUST  
+**Estimated Effort:** 2 hours  
+**Dependencies:** 0.1
+
+- [ ] Create `.golangci.yml` configuration
+  - Enable: govet, errcheck, staticcheck, gosimple, ineffassign, unused
+  - Set gocyclo complexity limit: 10
+  - Configure gofmt and goimports
+- [ ] Create `Makefile` with targets:
+  - `build` - Build binary
+  - `test` - Run all tests
+  - `lint` - Run golangci-lint
+  - `coverage` - Generate coverage report
+  - `clean` - Remove build artifacts
+  - `install` - Install binary locally
+  - `check` - Run test + lint
+- [ ] Add development setup to README.md
+
+**Acceptance Criteria:**
+- `make lint` executes successfully
+- `make test` runs (even with no tests yet)
+- `make build` produces binary
+
+---
+
+### 0.3: Setup CI/CD Pipeline
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 0.2
+
+- [ ] Create `.github/workflows/ci.yml`
+  - Trigger on push and pull_request
+  - Matrix test: Linux, macOS, Windows
+  - Run `make test`
+  - Run `make lint`
+  - Upload coverage to codecov/coveralls
+- [ ] Create `.github/workflows/lint.yml`
+  - Run golangci-lint
+  - Check gofmt formatting
+  - Fail on warnings
+- [ ] Create `.github/workflows/release.yml`
+  - Trigger on tag push (v*)
+  - Build binaries for multiple platforms
+  - Create GitHub release with binaries
+  - Generate checksums
+
+**Acceptance Criteria:**
+- CI runs on every push
+- All platforms tested
+- Lint failures block PRs
+
+---
+
+### 0.4: Install Dependencies
+**Priority:** MUST  
+**Estimated Effort:** 30 minutes  
+**Dependencies:** 0.1
+
+- [ ] Install Cobra: `go get github.com/spf13/cobra@latest`
+- [ ] Install Viper: `go get github.com/spf13/viper@latest`
+- [ ] Install Bubbletea: `go get github.com/charmbracelet/bubbletea@latest`
+- [ ] Run `go mod tidy`
+- [ ] Verify `go build` succeeds
+
+**Acceptance Criteria:**
+- All dependencies in `go.mod`
+- No version conflicts
+- Build succeeds
+
+---
+
+## Phase 1: Core Foundation
+
+### 1.1: Git Repository Detection
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 0.4  
+**Files:** `internal/git/repository.go`, `internal/git/repository_test.go`
+
+- [ ] Create `internal/git` package
+- [ ] Implement `Repository` struct with `Root` field
+- [ ] Implement `FindRepository() (*Repository, error)`
+  - Walk up directory tree looking for `.git`
+  - Return absolute path to git root
+  - Return error if not found
+- [ ] Implement `(r *Repository) ConfigPath() string`
+  - Return path to `.mktodo.yml`
+- [ ] Write unit tests
+  - Test finding git root
+  - Test error when not in repo
+  - Test nested directories
+  - Test edge cases (root directory, symlinks)
+- [ ] Add error messages from messages package
+
+**Acceptance Criteria:**
+- Correctly detects git root
+- Clear error when not in git repo
+- Test coverage ≥ 85%
+
+---
+
+### 1.2: Configuration Models
+**Priority:** MUST  
+**Estimated Effort:** 2 hours  
+**Dependencies:** 0.4  
+**Files:** `internal/config/config.go`
+
+- [ ] Create `internal/config` package
+- [ ] Define `Config` struct
+  - `TodoFile string` with yaml tag
+  - `Projects []ProjectConfig` with yaml tag
+- [ ] Define `ProjectConfig` struct
+  - `Name string` with yaml tag
+  - `Title string` with yaml tag
+  - `Parent *string` with yaml tag (pointer for nil)
+- [ ] Test YAML unmarshaling with sample data
+
+**Acceptance Criteria:**
+- Structs unmarshal from YAML correctly
+- Handles nil parent values
+- Clean, idiomatic Go code
+
+---
+
+### 1.3: Configuration Loading
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 1.2  
+**Files:** `internal/config/config.go`, `internal/config/config_test.go`
+
+- [ ] Implement `Load(path string) (*Config, error)`
+  - Use Viper to read YAML file
+  - Unmarshal to Config struct
+  - Return error for missing file
+  - Apply default values (todofile: README.md)
+- [ ] Create test fixtures in `testdata/configs/`
+  - `valid.yml` - Simple valid config
+  - `nested.yml` - Multi-level projects
+  - `invalid.yml` - Invalid YAML
+  - `missing_fields.yml` - Missing required fields
+- [ ] Write unit tests for all scenarios
+
+**Acceptance Criteria:**
+- Loads valid configurations
+- Returns clear errors for invalid YAML
+- Tests use fixtures
+- Test coverage ≥ 90%
+
+---
+
+### 1.4: Configuration Validation
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 1.3  
+**Files:** `internal/config/validate.go`, `internal/config/validate_test.go`
+
+- [ ] Implement `(c *Config) Validate() error`
+  - Check all required fields present (name, title, parent)
+  - Validate parent references exist
+  - Detect circular dependencies (use DFS/BFS)
+  - Validate nesting depth ≤ 6 levels
+  - Check for duplicate project names
+- [ ] Create detailed error messages
+  - List all validation failures
+  - Suggest fixes where possible
+- [ ] Write comprehensive tests
+  - Test each validation rule
+  - Test multiple errors at once
+  - Test edge cases
+
+**Acceptance Criteria:**
+- Catches all invalid configurations
+- Error messages are actionable
+- Test coverage ≥ 95%
+
+---
+
+### 1.5: Project Hierarchy
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 1.4  
+**Files:** `internal/project/project.go`, `internal/project/hierarchy.go`, `internal/project/project_test.go`
+
+- [ ] Create `internal/project` package
+- [ ] Define `Project` struct
+  - `Name string`
+  - `Title string`
+  - `Parent *Project`
+  - `Children []*Project`
+  - `Level int` (header level 1-6)
+  - `Items []*todo.Item` (forward reference)
+- [ ] Implement `BuildHierarchy(cfg *config.Config) (map[string]*Project, error)`
+  - Create project instances
+  - Link parent-child relationships
+  - Calculate header levels recursively
+  - Return map of projects by name
+- [ ] Implement `FindByPath(projects map[string]*Project, path string) (*Project, error)`
+  - Parse dotted notation (e.g., "lego.technic.vehicles")
+  - Navigate hierarchy
+  - Return error if not found
+- [ ] Write unit tests
+  - Test flat hierarchy
+  - Test nested hierarchy (3+ levels)
+  - Test dotted path resolution
+  - Test level calculation
+
+**Acceptance Criteria:**
+- Builds correct project tree
+- Calculates header levels (1-6)
+- Dotted paths work correctly
+- Test coverage ≥ 85%
+
+---
+
+## Phase 2: Markdown Parsing
+
+### 2.1: TODO Item Model
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 1.5  
+**Files:** `internal/todo/item.go`, `internal/todo/item_test.go`
+
+- [ ] Create `internal/todo` package
+- [ ] Define `Item` struct
+  - `Description string`
+  - `Done bool`
+  - `IsFIXME bool`
+  - `LineNumber int`
+  - `Project *project.Project`
+- [ ] Implement `Parse(line string) (*Item, error)`
+  - Detect checkbox: `- [ ]`, `* [ ]`, `+ [ ]`
+  - Detect done state: `[x]`, `[X]`
+  - Extract description
+  - Detect FIXME prefix (case-insensitive)
+  - Return nil for non-TODO lines
+- [ ] Implement `(i *Item) String() string`
+  - Format as markdown: `- [ ] description`
+  - Use `[X]` for done items
+- [ ] Write unit tests
+  - Test all checkbox variations
+  - Test FIXME detection
+  - Test round-trip (Parse → String → Parse)
+  - Test malformed input
+
+**Acceptance Criteria:**
+- Parses all TODO formats
+- FIXME detection works
+- Round-trip preserves semantics
+- Test coverage ≥ 90%
+
+---
+
+### 2.2: Markdown Section Parser
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 2.1  
+**Files:** `internal/parser/section.go`, `internal/parser/section_test.go`
+
+- [ ] Create `internal/parser` package
+- [ ] Define `SectionType` enum
+  - `SectionHeader`
+  - `SectionTODO`
+  - `SectionOther`
+- [ ] Define `Section` struct
+  - `Type SectionType`
+  - `Content string`
+  - `Line int`
+  - `Project *project.Project`
+- [ ] Implement `SplitSections(content string) []Section`
+  - Split markdown by headers and TODO blocks
+  - Detect header level (`#`, `##`, etc.)
+  - Preserve exact whitespace
+  - Track line numbers
+- [ ] Write unit tests
+  - Test simple markdown
+  - Test nested headers
+  - Test mixed content
+  - Test whitespace preservation
+
+**Acceptance Criteria:**
+- Splits markdown correctly
+- Preserves all formatting
+- Accurate header level detection
+- Test coverage ≥ 85%
+
+---
+
+### 2.3: Markdown Document Parser
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 2.2  
+**Files:** `internal/parser/markdown.go`, `internal/parser/markdown_test.go`
+
+- [ ] Define `Document` struct
+  - `FilePath string`
+  - `Sections []Section`
+  - `Projects map[string]*project.Project`
+- [ ] Implement `Parse(filePath string, projects map[string]*project.Project) (*Document, error)`
+  - Read markdown file
+  - Split into sections using `SplitSections`
+  - Match header titles to project titles
+  - Extract TODO items from matched sections
+  - Populate project.Items
+  - Preserve all non-TODO content
+- [ ] Implement `(d *Document) FindProject(name string) (*project.Project, error)`
+- [ ] Create test fixtures in `testdata/markdown/`
+  - `simple.md` - Basic TODO list
+  - `nested.md` - Nested projects
+  - `mixed.md` - TODO and non-TODO content
+  - `complex.md` - Real-world example
+- [ ] Write comprehensive tests
+
+**Acceptance Criteria:**
+- Parses complex markdown
+- All non-TODO content preserved exactly
+- Headers matched to projects
+- TODO items extracted with line numbers
+- Test coverage ≥ 85%
+
+---
+
+### 2.4: Markdown Writer
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 2.3  
+**Files:** `internal/parser/writer.go`, `internal/parser/writer_test.go`
+
+- [ ] Implement `(d *Document) Write(filePath string) error`
+  - Reconstruct markdown from sections
+  - Update TODO sections with modified items
+  - Preserve all formatting
+  - Use atomic write pattern:
+    1. Write to temp file
+    2. Sync temp file
+    3. Rename to target (atomic)
+  - Preserve file permissions
+  - Preserve line endings (detect LF vs CRLF)
+- [ ] Handle errors gracefully
+  - Clean up temp files on error
+  - Return clear error messages
+- [ ] Write tests
+  - Test round-trip (Parse → Write → Parse)
+  - Test permission preservation
+  - Test atomic write (simulate failure)
+  - Test line ending preservation
+
+**Acceptance Criteria:**
+- Atomic writes (no data loss)
+- Permissions preserved
+- Line endings preserved
+- Round-trip test passes
+- Test coverage ≥ 80%
+
+---
+
+## Phase 3: CLI Commands
+
+### 3.1: Root Command Setup
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 1.5, 2.4  
+**Files:** `cmd/root.go`, `main.go`
+
+- [ ] Create `cmd` package
+- [ ] Initialize Cobra root command
+  - Set command name: "mktodo"
+  - Add short and long descriptions
+  - Add usage examples
+- [ ] Add global flags
+  - `--config, -c` - Config file path
+  - `--help, -h` - Help (Cobra default)
+  - `--version, -v` - Version info
+- [ ] Implement version command/flag
+  - Show version number
+  - Show Go version
+  - Show build info
+- [ ] Integrate Viper for config
+  - Bind flags to Viper
+  - Set config file search paths
+- [ ] Update `main.go` to execute root command
+- [ ] Test `--help` and `--version` output
+
+**Acceptance Criteria:**
+- `mktodo --help` shows usage
+- `mktodo --version` shows version
+- Global flags work
+
+---
+
+### 3.2: Add Command
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 3.1  
+**Files:** `cmd/add.go`, `cmd/add_test.go`
+
+- [ ] Create `add` command
+  - Args: `<description>` (required)
+  - Flags: `-p/--project`, `-y/--yes`
+- [ ] Implement execution logic
+  1. Find git repository
+  2. Load configuration
+  3. Validate configuration
+  4. Build project hierarchy
+  5. Resolve project (default or specified)
+  6. Parse markdown file
+  7. Check if file exists (prompt if not, respect --yes)
+  8. Append TODO item to project
+  9. Write markdown file
+  10. Print success message
+- [ ] Handle errors
+  - Not in git repo
+  - Config not found
+  - Invalid project
+  - File permission errors
+- [ ] Add help text with examples
+- [ ] Write integration tests
+
+**Acceptance Criteria:**
+- Adds TODO to default project
+- Adds TODO to nested project with `-p`
+- Creates file with confirmation if missing
+- Clear error messages
+- Help text complete
+
+---
+
+### 3.3: Remove Command
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 3.2  
+**Files:** `cmd/remove.go`, `cmd/remove_test.go`
+
+- [ ] Create `remove` command
+  - Aliases: `rm`, `destroy`
+  - Args: `<description>` (required)
+  - Flags: `-p/--project`, `-y/--yes`
+- [ ] Implement execution logic
+  1. Load config and parse markdown
+  2. Resolve project
+  3. Find TODO item (exact or fuzzy match)
+  4. If fuzzy match, show suggestions
+  5. Prompt for confirmation (unless --yes)
+  6. Remove item
+  7. Write markdown file
+  8. Print success message
+- [ ] Implement fuzzy matching
+  - Suggest similar items if exact match fails
+  - Show top 3 matches
+- [ ] Add help text with examples
+- [ ] Write integration tests
+
+**Acceptance Criteria:**
+- Removes TODO by exact match
+- Fuzzy matching suggests alternatives
+- Confirmation required (unless --yes)
+- Error if item not found
+
+---
+
+### 3.4: Done Command
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 3.2  
+**Files:** `cmd/done.go`, `cmd/done_test.go`
+
+- [ ] Create `done` command
+  - Alias: `complete`
+  - Args: `<description>` (required)
+  - Flags: `-p/--project`
+- [ ] Implement execution logic
+  1. Load config and parse markdown
+  2. Resolve project
+  3. Find TODO item (exact or partial match)
+  4. Toggle done state: `[ ]` → `[X]` or `[X]` → `[ ]`
+  5. Write markdown file
+  6. Print status message
+- [ ] Add help text with examples
+- [ ] Write integration tests
+
+**Acceptance Criteria:**
+- Marks TODO as done
+- Works with partial description match
+- Toggles if already done
+- Error if item not found
+
+---
+
+### 3.5: List Command
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 3.2  
+**Files:** `cmd/list.go`, `cmd/list_test.go`
+
+- [ ] Create `list` command
+  - Alias: `ls`
+  - Flags: `-p/--project`, `-o/--open`, `-d/--done`, `--format`
+- [ ] Implement execution logic
+  1. Load config and parse markdown
+  2. Apply filters (project, status)
+  3. Sort items (FIXME first, then order)
+  4. Format output based on --format flag
+  5. Print to stdout
+- [ ] Implement output formats
+  - `text` (default) - Human-readable
+  - `json` - JSON array
+  - `yaml` - YAML list
+- [ ] Implement text format
+  - Group by project hierarchy
+  - Show project names with counts
+  - Indent child projects
+  - Highlight FIXME items (color/bold)
+  - Show checkbox and description
+- [ ] Add help text with examples
+- [ ] Write integration tests
+
+**Acceptance Criteria:**
+- Lists all TODOs by default
+- Filters work correctly
+- FIXME items appear first
+- All output formats work
+- Readable, well-formatted output
+
+---
+
+### 3.6: Open Command
+**Priority:** SHOULD  
+**Estimated Effort:** 1 hour  
+**Dependencies:** 3.5  
+**Files:** `cmd/open.go`
+
+- [ ] Create `open` command
+  - Flags: `-p/--project`
+- [ ] Implement as wrapper around `list --open`
+- [ ] Add help text
+
+**Acceptance Criteria:**
+- Shows only open items
+- Equivalent to `list --open`
+
+---
+
+### 3.7: Report Command
+**Priority:** SHOULD  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 3.5  
+**Files:** `cmd/report.go`, `cmd/report_test.go`
+
+- [ ] Create `report` command
+  - Flags: `--format`, `-o/--output`
+- [ ] Implement execution logic
+  1. Load config and parse markdown
+  2. Calculate statistics per project
+     - Total items
+     - Open items
+     - Done items
+     - FIXME items
+     - Completion percentage
+  3. Generate report in specified format
+  4. Write to file or stdout
+- [ ] Implement text format
+  - Summary section (overall stats)
+  - Per-project breakdown with progress bars
+  - FIXME items list
+  - Use ASCII art (═, ─, █, ░)
+- [ ] Implement markdown format
+  - Tables with statistics
+  - Embeddable in documentation
+- [ ] Implement HTML format
+  - Standalone HTML file
+  - Basic CSS styling
+  - Charts/progress bars
+- [ ] Implement JSON format
+  - Machine-readable statistics
+- [ ] Add help text with examples
+- [ ] Write tests
+
+**Acceptance Criteria:**
+- Generates accurate statistics
+- All formats work correctly
+- Output to file with `-o` flag
+- Readable, informative reports
+
+---
+
+## Phase 4: Messages Package
+
+### 4.1: Message Files
+**Priority:** SHOULD  
+**Estimated Effort:** 2 hours  
+**Dependencies:** 3.7  
+**Files:** `messages/errors.txt`, `messages/help.txt`, `messages/prompts.txt`
+
+- [ ] Create `messages` directory
+- [ ] Create `errors.txt`
+  - Git repository errors
+  - Configuration errors
+  - File system errors
+  - TODO item errors
+  - Use consistent format: KEY=Message text
+- [ ] Create `help.txt`
+  - Command usage help
+  - Examples
+  - Tips and tricks
+- [ ] Create `prompts.txt`
+  - User confirmation prompts
+  - Interactive prompts
+- [ ] Document message format
+
+**Acceptance Criteria:**
+- All common errors covered
+- Consistent formatting
+- Clear, actionable messages
+
+---
+
+### 4.2: Message Loader
+**Priority:** SHOULD  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 4.1  
+**Files:** `messages/messages.go`, `messages/messages_test.go`
+
+- [ ] Implement go:embed for text files
+- [ ] Implement `Get(key string, args ...interface{}) string`
+  - Parse key=value format
+  - Support template substitution
+  - Return fallback for missing keys
+- [ ] Implement `Errorf(key string, args ...interface{}) error`
+  - Return error with message
+- [ ] Write unit tests
+  - Test message lookup
+  - Test template substitution
+  - Test missing keys
+
+**Acceptance Criteria:**
+- All messages loaded via go:embed
+- Template substitution works
+- Graceful fallback for missing keys
+- Test coverage ≥ 85%
+
+---
+
+### 4.3: Integrate Messages
+**Priority:** SHOULD  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 4.2  
+**Files:** All command files
+
+- [ ] Replace hardcoded error strings in:
+  - `internal/git/`
+  - `internal/config/`
+  - `internal/parser/`
+  - `cmd/`
+- [ ] Replace hardcoded help text
+- [ ] Replace hardcoded prompts
+- [ ] Update tests to use message keys
+
+**Acceptance Criteria:**
+- No hardcoded user-facing strings
+- All messages from messages package
+- Tests updated
+
+---
+
+## Phase 5: TUI Implementation
+
+### 5.1: TUI Model Setup
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 3.7  
+**Files:** `internal/tui/model.go`, `internal/tui/model_test.go`
+
+- [ ] Create `internal/tui` package
+- [ ] Define `Model` struct
+  - `config *config.Config`
+  - `doc *parser.Document`
+  - `projects []*project.Project` (flat list for display)
+  - `selected int` (currently selected index)
+  - `pane string` (focused pane: "projects" or "items")
+  - `dirty bool` (unsaved changes)
+  - `clipboard *todo.Item` (cut/paste)
+  - `width, height int` (terminal size)
+  - `mode string` (normal, editing, menu, confirm)
+  - `editor string` (text being edited)
+- [ ] Implement `New(cfg *config.Config, doc *parser.Document) Model`
+  - Initialize model
+  - Flatten project hierarchy for display
+  - Set initial state
+- [ ] Implement Bubbletea `Init() tea.Cmd`
+- [ ] Write unit tests
+
+**Acceptance Criteria:**
+- Model initializes correctly
+- State tracking works
+- Test coverage ≥ 70%
+
+---
+
+### 5.2: View Rendering
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 5.1  
+**Files:** `internal/tui/view.go`, `internal/tui/styles.go`
+
+- [ ] Implement `View() string`
+  - Render header (title, version, help hints)
+  - Render projects pane (tree view)
+  - Render items pane (TODO list)
+  - Render footer (keybindings help)
+  - Render status bar (dirty indicator, mode)
+- [ ] Use lipgloss for styling
+  - Define color scheme
+  - Style headers, items, selection
+  - Highlight FIXME items (red/bold)
+  - Gray out completed items
+- [ ] Implement project tree rendering
+  - Show hierarchy with indentation
+  - Expand/collapse indicators (▸/▾)
+  - Item counts per project
+- [ ] Implement TODO list rendering
+  - Checkbox and description
+  - Current selection indicator
+  - Scrolling for long lists
+- [ ] Handle terminal resize
+  - Recalculate layout
+  - Adjust scrolling
+- [ ] Support no-color mode (TERM=dumb)
+- [ ] Write view rendering tests
+
+**Acceptance Criteria:**
+- Layout renders correctly
+- Projects and items displayed
+- Visual feedback clear
+- Graceful resize handling
+- Works without color
+
+---
+
+### 5.3: Navigation
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 5.2  
+**Files:** `internal/tui/update.go`
+
+- [ ] Implement `Update(msg tea.Msg) (tea.Model, tea.Cmd)`
+- [ ] Handle keyboard navigation
+  - `↑/k` - Move up
+  - `↓/j` - Move down
+  - `←/h` - Switch to projects pane
+  - `→/l` - Switch to items pane
+  - `Tab` - Toggle pane focus
+  - `Enter` - Expand/collapse project or select item
+  - `Home` - Jump to first item
+  - `End` - Jump to last item
+  - `PgUp/PgDn` - Scroll page
+- [ ] Update selection state
+  - Track selected index
+  - Handle bounds checking
+  - Update view
+- [ ] Implement scrolling
+  - Keep selection in view
+  - Smooth scrolling
+- [ ] Write navigation tests
+
+**Acceptance Criteria:**
+- All navigation keys work
+- Selection updates correctly
+- Visual feedback immediate
+- No crashes on edge cases
+
+---
+
+### 5.4: TODO Operations
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 5.3  
+**Files:** `internal/tui/update.go`, `internal/tui/operations.go`
+
+- [ ] Implement TODO operations
+  - `Space` - Toggle done status
+  - `d` - Delete (show confirmation)
+  - `-` - Move item up
+  - `+` - Move item down
+  - `x` - Cut to clipboard
+  - `p` - Paste from clipboard
+  - `e` - Edit description (enter edit mode)
+- [ ] Update dirty flag on changes
+- [ ] Implement confirmation dialog for delete
+  - Show popup
+  - Wait for y/n
+  - Proceed or cancel
+- [ ] Implement move up/down
+  - Swap items in project
+  - Update selection
+- [ ] Implement cut/paste
+  - Store item in clipboard
+  - Remove from source project
+  - Add to target project
+- [ ] Write operation tests
+
+**Acceptance Criteria:**
+- All operations work correctly
+- Confirmation for destructive actions
+- Dirty flag updates
+- Clipboard works
+
+---
+
+### 5.5: Editing Component
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 5.4  
+**Files:** `internal/tui/components/editor.go`
+
+- [ ] Implement inline editor
+  - Enter edit mode on `e` or `a`
+  - Show text input field
+  - Support basic editing
+    - Character input
+    - Backspace
+    - Cursor movement
+  - `Enter` - Confirm
+  - `Esc` - Cancel
+- [ ] Integrate with model
+  - Switch to edit mode
+  - Update model.editor field
+  - On confirm, update TODO item
+  - On cancel, discard changes
+- [ ] Handle add new item (from project pane, press `a`)
+  - Create new item
+  - Add to selected project
+- [ ] Handle edit existing item (from item pane, press `e`)
+  - Load current description
+  - Update on confirm
+- [ ] Write editor tests
+
+**Acceptance Criteria:**
+- Can add new items
+- Can edit existing items
+- Enter/Esc work correctly
+- Input validation
+
+---
+
+### 5.6: Menu Component
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 5.5  
+**Files:** `internal/tui/components/menu.go`
+
+- [ ] Implement Esc menu popup
+  - Display centered popup
+  - Options:
+    - `q` - Quit
+    - `s` - Save
+    - `x` - Save and quit
+    - `Esc` - Cancel (close menu)
+- [ ] Implement quit with confirmation
+  - If dirty, show confirmation
+  - "Save changes? (y/n)"
+  - On `y`, save then quit
+  - On `n`, quit without saving
+  - On `Esc`, cancel quit
+- [ ] Implement save
+  - Write document to file
+  - Clear dirty flag
+  - Show success message
+  - Stay in TUI
+- [ ] Implement save and quit
+  - Write document
+  - Quit program
+- [ ] Write menu tests
+
+**Acceptance Criteria:**
+- Menu displays on Esc
+- All options work
+- Confirmation when dirty
+- Clear feedback
+
+---
+
+### 5.7: File Operations
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** 5.6  
+**Files:** `internal/tui/file.go`
+
+- [ ] Implement save operation
+  - Update document sections with modified items
+  - Call `doc.Write()`
+  - Handle errors gracefully
+  - Show error popup if write fails
+  - Clear dirty flag on success
+- [ ] Implement autosave (optional)
+  - Save every N minutes
+  - Save on certain events
+- [ ] Show feedback messages
+  - "Saved successfully"
+  - "Error: permission denied"
+  - Duration: 2 seconds
+- [ ] Write file operation tests
+
+**Acceptance Criteria:**
+- Save persists changes
+- Dirty flag clears
+- User feedback shown
+- Errors handled gracefully
+
+---
+
+### 5.8: Help Overlay
+**Priority:** SHOULD  
+**Estimated Effort:** 2 hours  
+**Dependencies:** 5.7  
+**Files:** `internal/tui/components/help.go`
+
+- [ ] Implement help overlay
+  - Trigger on `?`
+  - Show centered popup
+  - List all keybindings
+    - Navigation keys
+    - TODO operations
+    - Menu operations
+    - General shortcuts
+  - Dismiss on any key
+- [ ] Style help text
+  - Group by category
+  - Clear formatting
+  - Readable layout
+- [ ] Write help tests
+
+**Acceptance Criteria:**
+- Help displays all shortcuts
+- Clear and readable
+- Easy to dismiss
+
+---
+
+### 5.9: TUI Command
+**Priority:** MUST  
+**Estimated Effort:** 2 hours  
+**Dependencies:** 5.8  
+**Files:** `cmd/tui.go`
+
+- [ ] Create `tui` command
+  - No arguments
+  - No flags (uses config)
+- [ ] Implement execution logic
+  1. Find git repository
+  2. Load configuration
+  3. Build project hierarchy
+  4. Parse markdown file
+  5. Initialize TUI model
+  6. Run Bubbletea program
+  7. Handle exit (save if needed)
+- [ ] Add help text
+- [ ] Write integration test
+
+**Acceptance Criteria:**
+- Launches TUI successfully
+- Loads data correctly
+- Exits cleanly
+- Saves on exit if dirty
+
+---
+
+## Phase 6: Testing & Quality
+
+### 6.1: Unit Test Coverage
+**Priority:** MUST  
+**Estimated Effort:** 10 hours  
+**Dependencies:** 5.9
+
+- [ ] Review test coverage report
+  - Run `go test -coverprofile=coverage.out ./...`
+  - View with `go tool cover -html=coverage.out`
+- [ ] Write missing tests for:
+  - `internal/config` → Target: ≥ 90%
+  - `internal/git` → Target: ≥ 85%
+  - `internal/parser` → Target: ≥ 85%
+  - `internal/project` → Target: ≥ 85%
+  - `internal/todo` → Target: ≥ 85%
+  - `internal/tui` → Target: ≥ 70%
+- [ ] Use table-driven tests where appropriate
+- [ ] Mock external dependencies (file I/O)
+- [ ] Test error paths
+- [ ] Test edge cases
+
+**Acceptance Criteria:**
+- Overall coverage ≥ 80%
+- Per-package targets met
+- All critical paths tested
+- Coverage report in CI
+
+---
+
+### 6.2: Integration Tests
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 6.1  
+**Files:** `tests/integration_test.go`
+
+- [ ] Create `tests` directory
+- [ ] Write end-to-end workflow tests
+  - Test: Add → List → verify
+  - Test: Add → Done → List → verify
+  - Test: Add → Remove → List → verify
+  - Test: Add to nested project
+  - Test: Multiple operations in sequence
+  - Test: TUI save/load cycle
+- [ ] Use temporary test repositories
+  - Create temp dir
+  - Init git repo
+  - Create config file
+  - Run operations
+  - Verify results
+  - Clean up
+- [ ] Test error scenarios
+  - Not in git repo
+  - Missing config
+  - Invalid project
+  - Permission denied
+- [ ] Test concurrent access (optional)
+
+**Acceptance Criteria:**
+- All main workflows tested
+- Error cases covered
+- Tests isolated (no side effects)
+- Pass consistently
+
+---
+
+### 6.3: Test Fixtures
+**Priority:** MUST  
+**Estimated Effort:** 3 hours  
+**Dependencies:** None (parallel with testing)  
+**Files:** `testdata/*`
+
+- [ ] Create `testdata/configs/`
+  - `simple.yml` - Basic config
+  - `nested.yml` - Multi-level hierarchy
+  - `invalid_yaml.yml` - Syntax error
+  - `missing_fields.yml` - Incomplete
+  - `circular.yml` - Circular dependency
+  - `duplicate_names.yml` - Duplicate projects
+  - `deep_nesting.yml` - 6 levels
+- [ ] Create `testdata/markdown/`
+  - `simple.md` - Basic TODO list
+  - `nested.md` - Nested projects
+  - `mixed_content.md` - TODO and other content
+  - `fixme.md` - FIXME items
+  - `empty_sections.md` - Empty projects
+  - `complex.md` - Real-world example
+  - `malformed.md` - Edge cases
+- [ ] Create `testdata/expected/`
+  - Expected outputs for various operations
+- [ ] Document fixtures
+  - Create `testdata/README.md`
+  - Explain each fixture's purpose
+
+**Acceptance Criteria:**
+- Comprehensive test data
+- Covers all scenarios
+- Well documented
+
+---
+
+### 6.4: Linting & Formatting
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 6.1
+
+- [ ] Review and update `.golangci.yml`
+  - Enable all relevant linters
+  - Set appropriate exclusions
+  - Configure complexity limits
+- [ ] Run golangci-lint
+  - Fix all reported issues
+  - Document any disabled rules
+- [ ] Run gofmt on all files
+  - `gofmt -w .`
+- [ ] Run goimports
+  - Organize imports
+  - Remove unused imports
+- [ ] Run go vet
+  - Fix all warnings
+- [ ] Verify in CI
+  - Ensure lint step passes
+  - Block PRs with lint failures
+
+**Linters to enable:**
+- govet, errcheck, staticcheck, gosimple
+- ineffassign, unused, typecheck
+- gocyclo, gofmt, goimports
+- misspell, unparam, nakedret
+
+**Acceptance Criteria:**
+- `make lint` passes with no warnings
+- All code formatted consistently
+- Linting runs in CI
+- No complexity violations
+
+---
+
+### 6.5: Documentation
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 6.4
+
+- [ ] Add godoc comments to all public APIs
+  - All exported functions
+  - All exported types
+  - Package-level documentation
+- [ ] Document complex algorithms
+  - Circular dependency detection
+  - Project hierarchy building
+  - Markdown parsing logic
+- [ ] Update README.md
+  - Installation instructions
+  - Configuration examples
+  - Usage examples for all commands
+  - TUI keybindings
+  - Screenshots/GIFs (optional)
+- [ ] Create CONTRIBUTING.md
+  - Development setup
+  - Testing guidelines
+  - PR process
+  - Code style guide
+- [ ] Create examples/ directory
+  - Example .mktodo.yml files
+  - Example markdown files
+  - Example workflows
+- [ ] Create CHANGELOG.md
+  - Initial v1.0.0 entry
+- [ ] Check documentation coverage
+  - `go doc -all` shows all APIs
+
+**Acceptance Criteria:**
+- All public APIs documented
+- README complete and accurate
+- Examples functional
+- godoc renders correctly
+
+---
+
+## Phase 7: Polish & Release
+
+### 7.1: Error Handling Review
+**Priority:** MUST  
+**Estimated Effort:** 4 hours  
+**Dependencies:** 6.5
+
+- [ ] Review all error messages
+  - Ensure clarity
+  - Ensure actionability
+  - Suggest fixes where possible
+- [ ] Standardize exit codes
+  - 0: Success
+  - 1: General error
+  - 2: Invalid usage
+  - 3: Configuration error
+  - 4: File system error
+  - 5: Git repository not found
+- [ ] Update all commands to use correct exit codes
+- [ ] Test error scenarios
+  - Manually trigger each error
+  - Verify message and exit code
+- [ ] Update error messages via messages package
+
+**Acceptance Criteria:**
+- All errors clear and actionable
+- Correct exit codes everywhere
+- User testing validates clarity
+
+---
+
+### 7.2: Performance Testing
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 7.1
+
+- [ ] Write benchmark tests
+  - `internal/parser` - Parsing large files
+  - `internal/project` - Building deep hierarchies
+  - `internal/config` - Loading large configs
+  - `cmd` - Command execution time
+- [ ] Create large test files
+  - 10MB markdown file
+  - 10,000 TODO items
+  - 6-level deep hierarchy
+- [ ] Run benchmarks
+  - `go test -bench=. -benchmem ./...`
+- [ ] Profile performance
+  - CPU profile: `go test -cpuprofile=cpu.prof`
+  - Memory profile: `go test -memprofile=mem.prof`
+  - Analyze with `go tool pprof`
+- [ ] Optimize hot paths if needed
+- [ ] Add performance tests to CI
+- [ ] Verify targets met
+  - CLI: < 100ms for < 1MB files
+  - TUI: < 50ms render time
+  - Memory: < 50MB typical usage
+
+**Acceptance Criteria:**
+- Performance targets met
+- Benchmarks in CI
+- No memory leaks
+- Profiling data analyzed
+
+---
+
+### 7.3: Cross-Platform Testing
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 7.2
+
+- [ ] Test on Linux
+  - Ubuntu 22.04 LTS
+  - Arch Linux (latest)
+  - Different terminals: xterm, gnome-terminal, konsole
+- [ ] Test on macOS
+  - Intel Mac (if available)
+  - Apple Silicon Mac (if available)
+  - Terminals: Terminal.app, iTerm2
+- [ ] Test on Windows
+  - Windows 10/11
+  - Terminals: cmd, PowerShell, Windows Terminal
+  - Git Bash
+- [ ] Test with different TERM values
+  - `TERM=xterm`
+  - `TERM=xterm-256color`
+  - `TERM=dumb` (no color)
+- [ ] Test edge cases
+  - Small terminals (80x24)
+  - Large terminals (200x60)
+  - UTF-8 handling
+- [ ] Document platform-specific issues
+- [ ] Fix critical issues
+
+**Acceptance Criteria:**
+- Works on all target platforms
+- Terminal compatibility verified
+- Graceful degradation
+- Known issues documented
+
+---
+
+### 7.4: User Documentation
+**Priority:** MUST  
+**Estimated Effort:** 5 hours  
+**Dependencies:** 7.3
+
+- [ ] Complete README.md
+  - Project description
+  - Features list
+  - Installation (all methods)
+  - Quick start guide
+  - Configuration guide
+  - Usage examples (all commands)
+  - TUI guide with keybindings
+  - Troubleshooting
+  - FAQ
+  - Contributing link
+  - License
+- [ ] Add screenshots
+  - TUI in action
+  - Example outputs
+  - (Optional: Create GIFs with asciinema)
+- [ ] Update CHANGELOG.md
+  - v1.0.0 release notes
+  - All features
+  - Known limitations
+- [ ] Choose and add LICENSE
+  - Recommend: MIT or Apache 2.0
+- [ ] Create man page (optional)
+  - `mktodo.1`
+  - Install to system man path
+
+**Acceptance Criteria:**
+- README comprehensive
+- All features documented
+- Visual examples included
+- License chosen and added
+
+---
+
+### 7.5: Build & Release Process
+**Priority:** MUST  
+**Estimated Effort:** 6 hours  
+**Dependencies:** 7.4
+
+- [ ] Install goreleaser
+  - `go install github.com/goreleaser/goreleaser@latest`
+- [ ] Create `.goreleaser.yml`
+  - Define build targets:
+    - linux/amd64, linux/arm64
+    - darwin/amd64, darwin/arm64
+    - windows/amd64
+  - Generate checksums
+  - Create archives (.tar.gz, .zip)
+  - Configure GitHub release
+- [ ] Test goreleaser locally
+  - `goreleaser release --snapshot --clean`
+  - Verify binaries work
+- [ ] Update `.github/workflows/release.yml`
+  - Trigger on tag push (v*)
+  - Run goreleaser
+  - Upload binaries
+  - Create GitHub release
+- [ ] Set version number
+  - Update version string in code
+  - Update README
+  - Update CHANGELOG
+- [ ] Create and push tag
+  - `git tag -a v1.0.0 -m "Release v1.0.0"`
+  - `git push origin v1.0.0`
+- [ ] Verify release
+  - Check GitHub release created
+  - Download and test binaries
+  - Verify checksums
+
+**Platforms:**
+- linux/amd64
+- linux/arm64
+- darwin/amd64
+- darwin/arm64
+- windows/amd64
+
+**Acceptance Criteria:**
+- Release automation works
+- Binaries built for all platforms
+- Checksums generated
+- GitHub release created
+- Binaries tested
+
+---
+
+### 7.6: Package Distribution
+**Priority:** SHOULD  
+**Estimated Effort:** 8 hours  
+**Dependencies:** 7.5
+
+- [ ] Create Homebrew formula
+  - Fork homebrew-core or create tap
+  - Write formula: `mktodo.rb`
+  - Test installation: `brew install mktodo`
+- [ ] Submit to Homebrew (optional)
+  - Create PR to homebrew-core
+  - Or create personal tap
+- [ ] Document go install
+  - `go install github.com/jvzantvoort/mktodo@latest`
+  - Test installation
+- [ ] Create installation script (optional)
+  - Detect OS and architecture
+  - Download appropriate binary
+  - Install to PATH
+- [ ] Update README with installation methods
+  - Homebrew
+  - go install
+  - Download binary
+  - Build from source
+- [ ] Test all installation methods
+
+**Acceptance Criteria:**
+- Homebrew formula works
+- go install works
+- Installation docs complete
+- All methods tested
+
+---
+
+## Summary Statistics
+
+**Total Phases:** 7  
+**Total Task Groups:** 38  
+**Estimated Total Effort:** ~150 hours
+
+### By Phase
+- Phase 0 (Setup): ~7 hours
+- Phase 1 (Foundation): ~17 hours
+- Phase 2 (Parsing): ~18 hours
+- Phase 3 (CLI): ~26 hours
+- Phase 4 (Messages): ~8 hours
+- Phase 5 (TUI): ~33 hours
+- Phase 6 (Testing): ~29 hours
+- Phase 7 (Release): ~34 hours
+
+### By Priority
+- MUST: ~130 hours (35 task groups)
+- SHOULD: ~20 hours (3 task groups)
+
+### Critical Path
+Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 5 → Phase 6 → Phase 7
+
+**Estimated Timeline:** 14 weeks (at ~10-12 hours/week)
+
+---
+
+## Task Tracking
+
+Use this checklist format to track progress:
+
+```
+- [ ] Task not started
+- [~] Task in progress
+- [X] Task completed
+- [!] Task blocked
+```
+
+---
+
+**End of Tasks Document**

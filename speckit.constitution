@@ -1,0 +1,178 @@
+# mktodo Project Principles
+
+## Code Quality
+
+### Static Analysis Compliance
+- All code MUST pass `go vet` without warnings
+- All code MUST pass `golangci-lint` checks with no exceptions
+- Linting failures block merges to main branch
+
+### Code Reviews
+- All changes require peer review before merge
+- Reviewers verify adherence to these principles
+- Security-sensitive changes require additional scrutiny
+
+### Documentation
+- Public functions and types MUST have godoc comments
+- Complex algorithms MUST include explanatory comments
+- README.md reflects current functionality and usage
+
+### Error Handling
+- Errors MUST be handled explicitly, never silently ignored
+- Error messages MUST be clear and actionable for users
+- Use wrapped errors to preserve context (`fmt.Errorf` with `%w`)
+
+## Code Simplicity
+
+### Avoid Unnecessary Complexity
+- Prefer simple, straightforward solutions over clever ones
+- Extract complex logic into well-named functions
+- Keep functions focused on single responsibilities
+- Limit cyclomatic complexity (aim for < 10 per function)
+
+### Readable Code
+- Use descriptive variable and function names
+- Prefer clarity over brevity in naming
+- Avoid deeply nested conditionals (max 3 levels)
+- Limit function length (aim for < 50 lines)
+
+### Dependencies
+- Minimize external dependencies
+- Preferred libraries only (Cobra, Viper, Bubbletea as specified)
+- Justify any new dependency additions
+- Regularly update dependencies for security
+
+### Text Block Management
+- Defer all text blocks to `github.com/jvzantvoort/mktodo/messages`
+- Use `go:embed` construct for message templates
+- Keep UI strings separated from business logic
+
+## Testing Standards
+
+### Test Coverage
+- Aim for high test coverage (target: 80%+ overall)
+- All new features MUST include tests
+- All bug fixes MUST include regression tests
+- Critical paths require 100% coverage
+
+### Test Quality
+- Tests MUST be clear, maintainable, and focused
+- One logical assertion per test when possible
+- Use table-driven tests for multiple scenarios
+- Mock external dependencies appropriately
+
+### Test Types
+- Unit tests for individual functions and types
+- Integration tests for component interactions
+- End-to-end tests for complete workflows
+- TUI components tested with Bubbletea testing utilities
+
+### Continuous Integration
+- All tests MUST pass before merge
+- Tests run automatically on every commit
+- GitHub workflows enforce quality gates
+- Performance regression tests for critical operations
+
+### Test Organization
+- Tests live in `*_test.go` files alongside source
+- Use meaningful test function names: `Test<Function>_<Scenario>`
+- Share test fixtures appropriately
+- Clean up test artifacts (files, state)
+
+## User Experience Consistency
+
+### Command Line Interface
+- Follow Unix conventions and standards
+- Provide consistent flag naming across commands
+- Support both short (`-p`) and long (`--project`) flags
+- Include helpful error messages with usage hints
+
+### Interactive TUI
+- Consistent keybindings across all views
+- Visual feedback for all user actions
+- Clear indication of current state and mode
+- Graceful handling of terminal resize
+
+### Error Messages
+- User-facing errors MUST be clear and actionable
+- Suggest fixes when possible
+- Distinguish user errors from system errors
+- No stack traces in normal operation
+
+### Output Formatting
+- Consistent formatting across all commands
+- Support for both human-readable and machine-parseable output
+- Respect terminal width and capabilities
+- Use color/formatting appropriately (degrades gracefully)
+
+### Prompts and Confirmations
+- Confirm destructive operations (delete, etc.)
+- Provide `--yes` or `--force` flags to skip prompts
+- Clear indication of default choices
+- Timeout or cancelable for all prompts
+
+### Help and Documentation
+- Every command has `--help` output
+- Help text follows consistent format
+- Examples included for complex operations
+- Man pages or equivalent documentation
+
+### Accessibility
+- Support non-color output modes
+- Keyboard navigation for all TUI features
+- Screen reader friendly where applicable
+- Respect terminal capabilities
+
+## File Handling
+
+### Git Integration
+- Always operate within git repository boundaries
+- Clear error when run outside git repo
+- Respect `.gitignore` patterns
+- Never commit sensitive data
+
+### Markdown Preservation
+- Only modify TODO sections in markdown files
+- Preserve all other content exactly
+- Maintain original formatting and spacing
+- Handle edge cases gracefully (malformed markdown)
+
+### Configuration
+- `.mktodo.yml` is the single source of truth
+- Validate configuration on load
+- Provide clear errors for invalid config
+- Support sensible defaults
+
+### File Safety
+- Prompt before creating new files
+- Respect command-line override flags (`--create`, etc.)
+- Atomic writes to prevent corruption
+- Backup or version control integration
+
+## Performance
+
+### Responsiveness
+- CLI commands respond in < 100ms for typical operations
+- TUI updates feel instantaneous (< 50ms)
+- Large files (> 10K lines) handled efficiently
+- Progress indicators for slow operations
+
+### Resource Usage
+- Minimize memory footprint
+- Clean up resources properly (close files, etc.)
+- No memory leaks in long-running TUI sessions
+- Efficient parsing and processing
+
+## Backwards Compatibility
+
+### Configuration Format
+- Maintain compatibility with existing `.mktodo.yml` files
+- Provide migration tools for breaking changes
+- Version configuration format if needed
+- Deprecation warnings before removal
+
+### Command Interface
+- Don't break existing command-line usage
+- Deprecate before removing commands/flags
+- Provide migration path in deprecation messages
+- Semantic versioning for releases
