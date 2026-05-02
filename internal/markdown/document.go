@@ -160,7 +160,7 @@ func (d *Document) AddItem(proj *project.Project, description string) (*todo.Ite
 					TODOItems: []*todo.Item{},
 					StartLine: section.StartLine + len(section.Lines),
 				}
-				
+
 				// Insert into sections slice
 				d.Sections = append(d.Sections[:i+1], append([]*Section{newSection}, d.Sections[i+1:]...)...)
 				targetSection = newSection
@@ -188,17 +188,17 @@ func (d *Document) RemoveItem(item *todo.Item) error {
 		if section.Type != SectionTODO {
 			continue
 		}
-		
+
 		for i, sectionItem := range section.TODOItems {
 			if sectionItem == item {
 				// Remove from TODOItems
 				section.TODOItems = append(section.TODOItems[:i], section.TODOItems[i+1:]...)
-				
+
 				// Remove from Lines
 				if i < len(section.Lines) {
 					section.Lines = append(section.Lines[:i], section.Lines[i+1:]...)
 				}
-				
+
 				// Remove from document items
 				for j, docItem := range d.Items {
 					if docItem == item {
@@ -206,12 +206,12 @@ func (d *Document) RemoveItem(item *todo.Item) error {
 						break
 					}
 				}
-				
+
 				return nil
 			}
 		}
 	}
-	
+
 	return fmt.Errorf("item not found in document")
 }
 
@@ -222,7 +222,7 @@ func (d *Document) UpdateItem(item *todo.Item) error {
 		if section.Type != SectionTODO {
 			continue
 		}
-		
+
 		for i, sectionItem := range section.TODOItems {
 			if sectionItem == item {
 				// Update the line
@@ -233,19 +233,15 @@ func (d *Document) UpdateItem(item *todo.Item) error {
 			}
 		}
 	}
-	
+
 	return fmt.Errorf("item not found in document")
 }
 
 // String returns the document as markdown text
 func (d *Document) String() string {
 	var parts []string
-	for i, section := range d.Sections {
+	for _, section := range d.Sections {
 		parts = append(parts, section.String())
-		// Add newline between sections except after the last one
-		if i < len(d.Sections)-1 {
-			parts = append(parts, "")
-		}
 	}
 	result := strings.Join(parts, "\n")
 	// Ensure file ends with newline

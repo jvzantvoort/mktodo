@@ -1,0 +1,277 @@
+# mktodo - Markdown TODO Management
+
+## Overview
+mktodo is a CLI and TUI tool for managing TODO items within markdown files in git repositories.
+
+It supports hierarchical project organization, FIXME prioritization, and preserves all non-TODO content.
+
+## Commands
+
+### add
+Add a new TODO item to a project.
+
+Usage:
+  mktodo add <description> [flags]
+
+Flags:
+  -p, --project string   Target project (use dotted notation for subprojects)
+  -y, --yes             Skip confirmation prompts
+
+Examples:
+  mktodo add "Write documentation"
+  mktodo add -p lego.technic "Build crane model"
+  mktodo add "FIXME: Security vulnerability"
+
+### done
+Mark a TODO item as done (or toggle back to not done).
+
+Usage:
+  mktodo done <description> [flags]
+
+Aliases: complete
+
+Flags:
+  -p, --project string   Filter by project
+
+Examples:
+  mktodo done "documentation"
+  mktodo done -p lego "task name"
+
+### remove
+Remove a TODO item from the document.
+
+Usage:
+  mktodo remove <description> [flags]
+
+Aliases: rm, destroy
+
+Flags:
+  -p, --project string   Filter by project
+  -y, --yes             Skip confirmation prompt
+
+Examples:
+  mktodo remove "obsolete task"
+  mktodo rm -p lego "old item"
+  mktodo rm -y "no confirm"
+
+### list
+List TODO items with optional filtering.
+
+Usage:
+  mktodo list [flags]
+
+Aliases: ls
+
+Flags:
+  -p, --project string   Filter by project
+  -o, --open            Show only open items
+  -d, --done            Show only done items
+  --format string       Output format: text, json, yaml (default "text")
+
+Examples:
+  mktodo list
+  mktodo ls -o
+  mktodo ls -p lego --format json
+
+### open
+List only open (incomplete) TODO items.
+
+Usage:
+  mktodo open [flags]
+
+Flags:
+  -p, --project string   Filter by project
+
+Examples:
+  mktodo open
+  mktodo open -p lego.technic
+
+### report
+Generate a TODO report with statistics.
+
+Usage:
+  mktodo report [flags]
+
+Flags:
+  --format string   Report format: text, markdown, json (default "text")
+  -o, --output string   Output file (default: stdout)
+
+Examples:
+  mktodo report
+  mktodo report --format markdown
+  mktodo report --format json -o report.json
+
+### tui
+Launch the interactive terminal user interface.
+
+Usage:
+  mktodo tui
+
+Examples:
+  mktodo tui
+
+## Configuration
+
+mktodo requires a `.mktodo.yml` configuration file in the git repository root.
+
+Example configuration:
+
+```yaml
+todofile: TODO.md
+
+projects:
+  - name: default
+    title: TODO
+    
+  - name: lego
+    title: Lego project targets
+    children:
+      - name: city
+        title: City
+      - name: technic
+        title: Technic
+```
+
+### Configuration Fields
+
+- `todofile`: Path to the markdown file containing TODO items (relative to git root)
+- `projects`: List of project definitions
+  - `name`: Unique identifier for the project (used with -p flag)
+  - `title`: Display title for the project (used as markdown header)
+  - `children`: Optional list of subprojects (same structure)
+
+## Markdown Format
+
+mktodo recognizes TODO items in the following format:
+
+```markdown
+## Project Title
+
+- [ ] Open TODO item
+- [x] Completed TODO item
+- [ ] FIXME: High priority item
+```
+
+Supported checkbox variations:
+- `- [ ]` or `- [x]` (hyphen list)
+- `* [ ]` or `* [x]` (asterisk list)
+- `+ [ ]` or `+ [x]` (plus list)
+
+FIXME Detection:
+- Items starting with "FIXME:" are automatically prioritized
+- Case-insensitive: "FIXME:", "fixme:", "Fixme:" all work
+
+## Project Hierarchy
+
+Projects can be nested to create a hierarchy:
+
+```yaml
+projects:
+  - name: parent
+    title: Parent Project
+    children:
+      - name: child1
+        title: Child Project 1
+      - name: child2
+        title: Child Project 2
+```
+
+Reference nested projects using dotted notation:
+```bash
+mktodo add -p parent.child1 "Task for child project"
+```
+
+## Tips and Tricks
+
+1. **Fuzzy Matching**: Most commands support partial description matching
+   - `mktodo done "doc"` matches "Write documentation"
+
+2. **FIXME Priority**: Items with FIXME are automatically prioritized
+   - Shown first in listings
+   - Highlighted in reports
+
+3. **Confirmation Prompts**: Use `-y` flag to skip confirmations
+   - Useful for scripts and automation
+
+4. **Multiple Formats**: Export TODO data in different formats
+   - JSON for processing
+   - YAML for readability
+   - Markdown for reports
+
+5. **Project Filtering**: All commands support `-p` flag
+   - Focus on specific project
+   - Works with dotted notation
+
+## Common Workflows
+
+### Starting a New Project
+```bash
+cd my-project
+git init
+cat > .mktodo.yml << EOF
+todofile: TODO.md
+projects:
+  - name: default
+    title: TODO
+EOF
+mktodo add "Initial setup"
+```
+
+### Daily Workflow
+```bash
+# See what's open
+mktodo open
+
+# Work on high priority items
+mktodo list -o | grep FIXME
+
+# Mark completed
+mktodo done "task description"
+
+# Generate progress report
+mktodo report
+```
+
+### Working with Subprojects
+```bash
+# Add to subproject
+mktodo add -p parent.child "Subtask"
+
+# List subproject items
+mktodo list -p parent.child
+
+# View all parent project items
+mktodo list -p parent
+```
+
+## Exit Codes
+
+- 0: Success
+- 1: General error
+- 2: Invalid arguments
+- 3: File not found
+- 4: Not in git repository
+- 5: Configuration error
+
+## Environment Variables
+
+Currently none. Configuration is file-based only.
+
+## Limitations
+
+- Only works within git repositories
+- Single TODO file per repository
+- Markdown format must follow specific structure
+- No multi-file support (yet)
+
+## Getting Help
+
+For command-specific help:
+```bash
+mktodo <command> --help
+```
+
+For general help:
+```bash
+mktodo --help
+```

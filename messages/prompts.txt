@@ -1,0 +1,90 @@
+# Add Command
+PROMPT_CREATE_FILE=File %s does not exist. Create it? [y/N] 
+
+MSG_ADDED=Added: %s
+
+MSG_MARKED_FIXME=  (marked as FIXME)
+
+MSG_TO_PROJECT=  to project: %s
+
+# Done Command
+PROMPT_MARK_DONE=Mark '%s' as done? [Y/n] 
+
+MSG_MARKED_DONE=✓ Marked as done: %s
+
+MSG_MARKED_UNDONE=✗ Marked as not done: %s
+
+# Remove Command
+PROMPT_CONFIRM_REMOVE=Remove '%s'? [y/N] 
+
+MSG_REMOVED=✗ Removed: %s
+
+# List Command
+MSG_NO_OPEN_ITEMS=No open TODO items. Great job! 🎉
+
+MSG_NO_DONE_ITEMS=No completed TODO items yet.
+
+MSG_NO_ITEMS=No TODO items found.
+
+# Open Command  
+MSG_FIXME_ITEMS=🔴 FIXME Items:
+
+MSG_OPEN_ITEMS=Open Items:
+
+MSG_TOTAL_OPEN=Total: %d open items (%d FIXME)
+
+MSG_TOTAL_OPEN_NO_FIXME=Total: %d open items
+
+MSG_NO_OPEN=No open TODO items. Great job! 🎉
+
+# Report Command
+MSG_REPORT_HEADER=# TODO Report
+
+MSG_REPORT_OVERALL=## Overall Summary
+
+MSG_REPORT_TOTAL=- **Total Items:** %d
+
+MSG_REPORT_OPEN=- **Open:** %d
+
+MSG_REPORT_DONE=- **Done:** %d
+
+MSG_REPORT_FIXME=- **FIXME:** %d
+
+MSG_REPORT_COMPLETION=- **Completion:** %.1f%%
+
+MSG_PROJECT_STATS=## %s
+
+MSG_PROJECT_TOTAL=- Total: %d items
+
+MSG_PROJECT_OPEN=- Open: %d
+
+MSG_PROJECT_DONE=- Done: %d
+
+MSG_PROJECT_FIXME=- FIXME: %d
+
+MSG_PROJECT_COMPLETION=- Completion: %.1f%%
+
+# General Messages
+MSG_SUCCESS=Success!
+
+MSG_SAVED=Saved changes to %s
+
+MSG_NO_CHANGES=No changes made.
+
+# Input prompts
+PROMPT_YES_NO=[y/N]
+
+PROMPT_CONFIRM=[Y/n]
+
+PROMPT_INPUT=> 
+
+# Status indicators
+ICON_CHECKED=✓
+
+ICON_UNCHECKED=✗
+
+ICON_FIXME=🔴
+
+ICON_CELEBRATE=🎉
+
+ICON_WARNING=⚠️

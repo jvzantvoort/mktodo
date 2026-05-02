@@ -55,7 +55,7 @@ func TestBuildHierarchy(t *testing.T) {
 				if len(projects) != 3 {
 					t.Errorf("expected 3 projects, got %d", len(projects))
 				}
-				
+
 				lego := projects["lego"]
 				if lego.Level != 1 {
 					t.Errorf("lego: expected level 1, got %d", lego.Level)
@@ -63,7 +63,7 @@ func TestBuildHierarchy(t *testing.T) {
 				if len(lego.Children) != 2 {
 					t.Errorf("lego: expected 2 children, got %d", len(lego.Children))
 				}
-				
+
 				technic := projects["technic"]
 				if technic.Level != 2 {
 					t.Errorf("technic: expected level 2, got %d", technic.Level)
@@ -71,7 +71,7 @@ func TestBuildHierarchy(t *testing.T) {
 				if technic.Parent != lego {
 					t.Error("technic: parent should be lego")
 				}
-				
+
 				city := projects["city"]
 				if city.Level != 2 {
 					t.Errorf("city: expected level 2, got %d", city.Level)

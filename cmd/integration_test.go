@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -14,10 +15,11 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	// Create temp directory
 	tmpDir := t.TempDir()
 
-	// Initialize as git repo
-	gitDir := filepath.Join(tmpDir, ".git")
-	if err := os.Mkdir(gitDir, 0755); err != nil {
-		t.Fatalf("creating .git dir: %v", err)
+	// Initialize as git repo using git init
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
 	}
 
 	// Create config

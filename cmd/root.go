@@ -33,7 +33,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default: .mktodo.yml in git root)")
-	
+
 	// Add subcommands
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(removeCmd)

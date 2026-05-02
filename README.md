@@ -6,6 +6,7 @@ an existing markdown file.
 Orientation the tool always works from within a git repo. If not
 exists with a warning.
 
+
 # Behavior
 
 * Only the todo items are considered to be maintained. This means
@@ -26,6 +27,7 @@ exists with a warning.
   treated as a special case, highlighted in output (when not
   completed) and prioritized in listing.
 
+
 # Coding
 
 * Language is golang
@@ -41,10 +43,12 @@ exists with a warning.
 * Avoid unnecessary code complexity
 * Fill out the github workflows to ensure a complete ci/cd picture
 
+
 # Configuration
 
 In the root of the git repo a target called ".mktodo.yml" maintains
 the information to work.
+
 
 ## Simple todo list
 
@@ -65,11 +69,16 @@ projects:
 ``README.md`` content:
 
 ```
+
 # TODO
+
 
 - [X] topic 1
 - [ ] topic 2
+- [ ] FIXME: TUI test item
+
 ```
+
 
 ## Simple non-default todo list
 
@@ -92,11 +101,15 @@ projects:
 ``README.md`` content:
 
 ```
+
 # Lego project targets
+
 
 - [X] topic 1
 - [ ] topic 2
+
 ```
+
 
 ## Nested todo list
 
@@ -117,15 +130,21 @@ projects:
 ``README.md`` content:
 
 ```
+
 # Lego project targets
+
 
 ## Technic
 
+
 - [X] topic 1
 - [ ] topic 2
+
 ```
 
+
 # Interfacing
+
 
 ## Comand line interfacing
 
@@ -140,6 +159,7 @@ The command accepts the following subcommands:
   project.
 * ``tui`` interactive session that allows for the listing, updating,
   completion of todo items
+
 
 ### Add
 
@@ -163,6 +183,7 @@ Add ``topic 5`` to the ``## Technic`` section:
 mktodo add -p lego.technic topic 5
 ```
 
+
 ### Remove
 
 Remove ``topic 3`` from the default ``# TODO`` section:
@@ -182,6 +203,7 @@ Remove ``topic 5`` from the ``## Technic`` section:
 ```
 mktodo rm -p lego.technic topic 5
 ```
+
 
 
 ## Interactive menu (charmbracelet)
@@ -217,7 +239,6 @@ Pressing ``Esc`` will create a popup with the following options:
 * ``s``, save. The current changes are save to the file(s)
 * ``x``, save + quit. The current changes are save to the file(s)
   and the application is quit
-
 
 
 

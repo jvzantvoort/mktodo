@@ -32,7 +32,7 @@ func BuildHierarchy(cfg *config.Config) (map[string]*Project, error) {
 	// Second pass: link parents and children
 	for _, projCfg := range cfg.Projects {
 		proj := projects[projCfg.Name]
-		
+
 		if projCfg.Parent != nil && *projCfg.Parent != "nil" {
 			parent, ok := projects[*projCfg.Parent]
 			if !ok {
@@ -72,7 +72,7 @@ func FindByPath(projects map[string]*Project, path string) (*Project, error) {
 
 	// Split path by dots
 	parts := strings.Split(path, ".")
-	
+
 	// Find the first part
 	current, ok := projects[parts[0]]
 	if !ok {

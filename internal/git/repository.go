@@ -3,7 +3,9 @@ package git
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -33,28 +35,22 @@ func FindRepositoryFrom(startPath string) (*Repository, error) {
 		return nil, err
 	}
 
-	current := absPath
-	for {
-		gitDir := filepath.Join(current, ".git")
-		if info, err := os.Stat(gitDir); err == nil {
-			// Check if .git is a directory (not a file for submodules)
-			if info.IsDir() {
-				return &Repository{Root: current}, nil
-			}
-		}
+	// Use git rev-parse to find the repository root
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = absPath
 
-		// Move to parent directory
-		parent := filepath.Dir(current)
-		
-		// Stop if we've reached the root
-		if parent == current {
-			break
-		}
-		
-		current = parent
+	output, err := cmd.Output()
+	if err != nil {
+		// Not in a git repository or git command failed
+		return nil, ErrNotInGitRepo
 	}
 
-	return nil, ErrNotInGitRepo
+	root := strings.TrimSpace(string(output))
+	if root == "" {
+		return nil, ErrNotInGitRepo
+	}
+
+	return &Repository{Root: root}, nil
 }
 
 // ConfigPath returns the path to the .mktodo.yml configuration file

@@ -72,7 +72,7 @@ func TestValidate(t *testing.T) {
 					t.Error("Validate() expected error, got nil")
 					return
 				}
-				
+
 				// Check if error contains expected strings
 				errStr := err.Error()
 				for _, expected := range tt.errContains {

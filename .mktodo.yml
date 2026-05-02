@@ -1,7 +1,6 @@
 ---
-todofile: TODO.md
+todofile: README.md
 projects:
   - name: default
     title: TODO
     parent: nil
-

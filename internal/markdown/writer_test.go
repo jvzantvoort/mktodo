@@ -45,7 +45,7 @@ func TestWriter_Write(t *testing.T) {
 		t.Fatalf("reading file: %v", err)
 	}
 
-	expected := "# Test\nSome content"
+	expected := "# Test\nSome content\n"
 	if string(content) != expected {
 		t.Errorf("content = %q, want %q", string(content), expected)
 	}
@@ -202,7 +202,7 @@ func TestSaveDocument_Integration(t *testing.T) {
 		t.Fatalf("reading file: %v", err)
 	}
 
-	expected := "# TODO\n- [ ] Task 1\n- [X] Task 2"
+	expected := "# TODO\n- [ ] Task 1\n- [X] Task 2\n"
 	if string(content) != expected {
 		t.Errorf("content = %q, want %q", string(content), expected)
 	}

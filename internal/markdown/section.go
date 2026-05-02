@@ -21,13 +21,13 @@ const (
 
 // Section represents a section of markdown content
 type Section struct {
-	Type       SectionType
-	Level      int              // Header level (1-6), 0 for non-headers
-	Title      string           // Header title
-	Project    *project.Project // Associated project (for headers)
-	Lines      []string         // Original lines (preserved exactly)
-	TODOItems  []*todo.Item     // Parsed TODO items (if SectionTODO)
-	StartLine  int              // Line number where section starts (1-indexed)
+	Type      SectionType
+	Level     int              // Header level (1-6), 0 for non-headers
+	Title     string           // Header title
+	Project   *project.Project // Associated project (for headers)
+	Lines     []string         // Original lines (preserved exactly)
+	TODOItems []*todo.Item     // Parsed TODO items (if SectionTODO)
+	StartLine int              // Line number where section starts (1-indexed)
 }
 
 var (
@@ -38,7 +38,7 @@ var (
 func ParseSections(content string) ([]*Section, error) {
 	var sections []*Section
 	var currentSection *Section
-	
+
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	lineNum := 0
 
@@ -135,12 +135,18 @@ func AssociateProjects(sections []*Section, projects map[string]*project.Project
 	for _, section := range sections {
 		if section.Type == SectionHeader {
 			// Try to find matching project
+			found := false
 			for _, proj := range projects {
 				if proj.Level == section.Level && proj.Title == section.Title {
 					section.Project = proj
 					currentProject = proj
+					found = true
 					break
 				}
+			}
+			// If no matching project found, reset current project
+			if !found {
+				currentProject = nil
 			}
 		} else if section.Type == SectionTODO && currentProject != nil {
 			// Associate TODO items with current project

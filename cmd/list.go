@@ -8,6 +8,7 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
+	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -54,8 +55,8 @@ func runList(cmd *cobra.Command, args []string) error {
 	// Get items
 	var items []*markdown.Item
 	if projectPath != "" {
-		proj := doc.Projects[projectPath]
-		if proj == nil {
+		proj, err := project.FindByPath(doc.Projects, projectPath)
+		if err != nil {
 			return fmt.Errorf("project %q not found", projectPath)
 		}
 		items = doc.GetItemsByProject(proj)

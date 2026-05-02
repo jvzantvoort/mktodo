@@ -1,0 +1,52 @@
+# Git Repository Errors
+ERR_NOT_IN_GIT_REPO=Error: Not in a git repository.
+Run 'git init' to initialize a repository, or navigate to an existing repository.
+
+ERR_GIT_ROOT_FAILED=Error: Failed to determine git repository root: %s
+
+# Configuration Errors
+ERR_CONFIG_NOT_FOUND=Error: Configuration file not found.
+Create .mktodo.yml in the repository root.
+
+ERR_CONFIG_LOAD_FAILED=Error: Failed to load configuration: %s
+
+ERR_CONFIG_INVALID=Error: Invalid configuration: %s
+
+ERR_PROJECT_NOT_FOUND=Error: Project '%s' not found.
+Available projects: %s
+
+# File Errors
+ERR_FILE_NOT_FOUND=Error: File '%s' not found.
+
+ERR_FILE_READ_FAILED=Error: Failed to read file '%s': %s
+
+ERR_FILE_WRITE_FAILED=Error: Failed to write file '%s': %s
+
+ERR_FILE_CREATE_FAILED=Error: Failed to create file '%s': %s
+
+# TODO Item Errors
+ERR_NO_ITEMS_FOUND=No TODO items found.
+
+ERR_ITEM_NOT_FOUND=Error: TODO item not found: '%s'
+
+ERR_ITEM_AMBIGUOUS=Error: Multiple TODO items match '%s':
+%s
+Please be more specific.
+
+ERR_NO_DESCRIPTION=Error: Description is required.
+
+ERR_INVALID_ITEM=Error: Invalid TODO item: %s
+
+# Operation Errors
+ERR_OPERATION_CANCELLED=Operation cancelled.
+
+ERR_OPERATION_FAILED=Error: Operation failed: %s
+
+ERR_INVALID_FORMAT=Error: Invalid format '%s'. Valid formats: %s
+
+ERR_INVALID_INPUT=Error: Invalid input: %s
+
+# Parse Errors
+ERR_PARSE_FAILED=Error: Failed to parse markdown: %s
+
+ERR_INVALID_CHECKBOX=Error: Invalid checkbox format on line %d: %s

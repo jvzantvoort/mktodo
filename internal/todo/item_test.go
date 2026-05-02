@@ -6,20 +6,20 @@ import (
 
 func TestParse(t *testing.T) {
 	tests := []struct {
-		name        string
-		line        string
-		wantItem    bool
-		wantDone    bool
-		wantFIXME   bool
-		wantDesc    string
+		name      string
+		line      string
+		wantItem  bool
+		wantDone  bool
+		wantFIXME bool
+		wantDesc  string
 	}{
 		{
-			name:     "basic open TODO",
-			line:     "- [ ] Complete documentation",
-			wantItem: true,
-			wantDone: false,
+			name:      "basic open TODO",
+			line:      "- [ ] Complete documentation",
+			wantItem:  true,
+			wantDone:  false,
 			wantFIXME: false,
-			wantDesc: "Complete documentation",
+			wantDesc:  "Complete documentation",
 		},
 		{
 			name:     "basic done TODO",
@@ -50,25 +50,25 @@ func TestParse(t *testing.T) {
 			wantDesc: "Task with plus",
 		},
 		{
-			name:     "FIXME item uppercase",
-			line:     "- [ ] FIXME: Security vulnerability",
-			wantItem: true,
+			name:      "FIXME item uppercase",
+			line:      "- [ ] FIXME: Security vulnerability",
+			wantItem:  true,
 			wantFIXME: true,
-			wantDesc: "FIXME: Security vulnerability",
+			wantDesc:  "FIXME: Security vulnerability",
 		},
 		{
-			name:     "FIXME item lowercase",
-			line:     "- [ ] fixme: needs refactoring",
-			wantItem: true,
+			name:      "FIXME item lowercase",
+			line:      "- [ ] fixme: needs refactoring",
+			wantItem:  true,
 			wantFIXME: true,
-			wantDesc: "fixme: needs refactoring",
+			wantDesc:  "fixme: needs refactoring",
 		},
 		{
-			name:     "FIXME item mixed case",
-			line:     "- [ ] FiXmE: broken feature",
-			wantItem: true,
+			name:      "FIXME item mixed case",
+			line:      "- [ ] FiXmE: broken feature",
+			wantItem:  true,
 			wantFIXME: true,
-			wantDesc: "FiXmE: broken feature",
+			wantDesc:  "FiXmE: broken feature",
 		},
 		{
 			name:     "with leading whitespace",
@@ -212,16 +212,16 @@ func TestItem_RoundTrip(t *testing.T) {
 
 func TestItem_MarkDone(t *testing.T) {
 	item := &Item{Description: "Test", Done: false}
-	
+
 	if item.Done {
 		t.Error("item should start as not done")
 	}
-	
+
 	item.MarkDone()
 	if !item.Done {
 		t.Error("item should be done after MarkDone()")
 	}
-	
+
 	item.MarkDone()
 	if item.Done {
 		t.Error("item should be undone after second MarkDone()")

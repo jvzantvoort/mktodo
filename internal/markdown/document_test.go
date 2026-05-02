@@ -74,7 +74,7 @@ func TestDocument_GetDoneItems(t *testing.T) {
 	}
 
 	doneItems := doc.GetDoneItems()
-	
+
 	// All done items should be done
 	for _, item := range doneItems {
 		if !item.Done {
@@ -124,10 +124,10 @@ func TestDocument_FindItem(t *testing.T) {
 		query string
 		want  int
 	}{
-		{"task", 2},    // Should match "Open task 1" and "Done task 1"
-		{"FIXME", 1},   // Should match FIXME item
-		{"broken", 1},  // Should match "broken feature"
-		{"xyz", 0},     // Should match nothing
+		{"task", 2},   // Should match "Open task 1" and "Done task 1"
+		{"FIXME", 1},  // Should match FIXME item
+		{"broken", 1}, // Should match "broken feature"
+		{"xyz", 0},    // Should match nothing
 	}
 
 	for _, tt := range tests {

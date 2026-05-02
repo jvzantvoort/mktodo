@@ -9,6 +9,7 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
 
@@ -30,13 +31,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Check we're in a git repository
 	repo, err := git.FindRepository()
 	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
+		return messages.Errorf("ERR_NOT_IN_GIT_REPO")
 	}
 
 	// Load configuration
 	cfg, err := config.Load(repo.ConfigPath())
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return messages.Errorf("ERR_CONFIG_LOAD_FAILED", err)
 	}
 
 	// Get flags
@@ -52,11 +53,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if _, err := os.Stat(todoPath); os.IsNotExist(err) {
 		fileExists = false
 		if !skipConfirm {
-			fmt.Printf("File %s does not exist. Create it? [y/N] ", cfg.TodoFile)
+			fmt.Print(messages.Prompt("PROMPT_CREATE_FILE", cfg.TodoFile))
 			var response string
 			fmt.Scanln(&response)
 			if strings.ToLower(response) != "y" {
-				return fmt.Errorf("cancelled")
+				return messages.Errorf("ERR_OPERATION_CANCELLED")
 			}
 		}
 	}
@@ -66,13 +67,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if fileExists {
 		doc, err = markdown.LoadDocument(todoPath, cfg)
 		if err != nil {
-			return fmt.Errorf("loading document: %w", err)
+			return messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
 		}
 	} else {
 		// Create new document with project structure
 		projects, err := project.BuildHierarchy(cfg)
 		if err != nil {
-			return fmt.Errorf("building hierarchy: %w", err)
+			return messages.Errorf("ERR_CONFIG_INVALID", err)
 		}
 		doc = &markdown.Document{
 			Path:     todoPath,
@@ -87,28 +88,28 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find the target project
-	proj := doc.Projects[projectPath]
-	if proj == nil {
-		return fmt.Errorf("project %q not found", projectPath)
+	proj, err := project.FindByPath(doc.Projects, projectPath)
+	if err != nil {
+		return messages.Errorf("ERR_PROJECT_NOT_FOUND", projectPath, getAvailableProjects(doc.Projects))
 	}
 
 	// Add the item
 	item, err := doc.AddItem(proj, description)
 	if err != nil {
-		return fmt.Errorf("adding item: %w", err)
+		return messages.Errorf("ERR_OPERATION_FAILED", err)
 	}
 
 	// Save the document
 	if err := markdown.SaveDocument(todoPath, doc); err != nil {
-		return fmt.Errorf("saving document: %w", err)
+		return messages.Errorf("ERR_FILE_WRITE_FAILED", todoPath, err)
 	}
 
 	// Success message
-	fmt.Printf("Added: %s\n", item.Description)
+	fmt.Println(messages.Prompt("MSG_ADDED", item.Description))
 	if item.IsFIXME {
-		fmt.Println("  (marked as FIXME)")
+		fmt.Println(messages.Prompt("MSG_MARKED_FIXME"))
 	}
-	fmt.Printf("  to project: %s\n", proj.Title)
+	fmt.Println(messages.Prompt("MSG_TO_PROJECT", proj.Title))
 
 	return nil
 }
@@ -127,6 +128,15 @@ func addProjectHeaders(doc *markdown.Document, proj *project.Project) {
 	for _, child := range proj.Children {
 		addProjectHeaders(doc, child)
 	}
+}
+
+// getAvailableProjects returns a comma-separated list of project names
+func getAvailableProjects(projects map[string]*project.Project) string {
+	var names []string
+	for name := range projects {
+		names = append(names, name)
+	}
+	return strings.Join(names, ", ")
 }
 
 func init() {

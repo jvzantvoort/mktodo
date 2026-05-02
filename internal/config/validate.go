@@ -83,18 +83,18 @@ func (c *Config) hasCircularDependency(name string, projectMap map[string]*Proje
 		if visited[current] {
 			return fmt.Errorf("circular dependency detected involving project '%s'", name)
 		}
-		
+
 		visited[current] = true
-		
+
 		proj, ok := projectMap[current]
 		if !ok || proj.Parent == nil || *proj.Parent == "nil" {
 			// Reached root or invalid reference
 			return nil
 		}
-		
+
 		current = *proj.Parent
 	}
-	
+
 	// If we hit max iterations, there must be a cycle
 	return fmt.Errorf("circular dependency detected involving project '%s'", name)
 }
@@ -111,9 +111,9 @@ func (c *Config) calculateDepth(name string, projectMap map[string]*ProjectConfi
 			// Circular dependency - return large depth to trigger error
 			return 999
 		}
-		
+
 		visited[current] = true
-		
+
 		proj, ok := projectMap[current]
 		if !ok || proj.Parent == nil || *proj.Parent == "nil" {
 			break

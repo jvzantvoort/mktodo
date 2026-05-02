@@ -2,6 +2,7 @@ package git
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -74,7 +75,7 @@ func TestFindRepositoryFrom(t *testing.T) {
 func TestRepository_ConfigPath(t *testing.T) {
 	repo := &Repository{Root: "/path/to/repo"}
 	expected := filepath.Join("/path/to/repo", ".mktodo.yml")
-	
+
 	if repo.ConfigPath() != expected {
 		t.Errorf("ConfigPath() = %s, want %s", repo.ConfigPath(), expected)
 	}
@@ -83,17 +84,18 @@ func TestRepository_ConfigPath(t *testing.T) {
 func TestFindRepositoryNestedPath(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
-	gitDir := filepath.Join(tmpDir, ".git")
 	nestedDir := filepath.Join(tmpDir, "nested", "path")
-
-	// Create .git directory
-	if err := os.Mkdir(gitDir, 0755); err != nil {
-		t.Fatalf("Failed to create .git directory: %v", err)
-	}
 
 	// Create nested directories
 	if err := os.MkdirAll(nestedDir, 0755); err != nil {
 		t.Fatalf("Failed to create nested directories: %v", err)
+	}
+
+	// Initialize git repository
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to initialize git repository: %v", err)
 	}
 
 	// Find repository from nested path
