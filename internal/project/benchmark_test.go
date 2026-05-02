@@ -12,7 +12,7 @@ func BenchmarkBuildHierarchy(b *testing.B) {
 	nilVal := "nil"
 	parent1 := "project1"
 	parent2 := "project2"
-	
+
 	cfg := &config.Config{
 		TodoFile: "README.md",
 		Projects: []config.ProjectConfig{
@@ -37,7 +37,7 @@ func BenchmarkFindByPath(b *testing.B) {
 	nilVal := "nil"
 	parent1 := "project1"
 	parent2 := "project2"
-	
+
 	cfg := &config.Config{
 		TodoFile: "README.md",
 		Projects: []config.ProjectConfig{
@@ -67,11 +67,11 @@ func BenchmarkComplexHierarchy(b *testing.B) {
 	// Create a complex hierarchy with many projects
 	nilVal := "nil"
 	defaultVal := "default"
-	
+
 	projects := []config.ProjectConfig{
 		{Name: "default", Title: "TODO", Parent: &nilVal},
 	}
-	
+
 	// Add 20 top-level projects
 	for i := 0; i < 20; i++ {
 		name := fmt.Sprintf("project%c", rune('A'+i))
@@ -82,7 +82,7 @@ func BenchmarkComplexHierarchy(b *testing.B) {
 			Parent: &parentCopy,
 		})
 	}
-	
+
 	cfg := &config.Config{
 		TodoFile: "README.md",
 		Projects: projects,

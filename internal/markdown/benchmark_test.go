@@ -72,15 +72,15 @@ func BenchmarkLargeDocument(b *testing.B) {
 	var builder strings.Builder
 	for i := 0; i < 10; i++ {
 		builder.WriteString(fmt.Sprintf("# Project %c\n\n", rune('A'+i)))
-		
+
 		for j := 0; j < 20; j++ {
 			builder.WriteString(fmt.Sprintf("- [ ] Task %d\n", j))
 		}
 		builder.WriteString("\n")
 	}
-	
+
 	content := builder.String()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := ParseSections(content)

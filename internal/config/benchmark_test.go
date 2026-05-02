@@ -10,7 +10,7 @@ import (
 // BenchmarkLoadConfig benchmarks configuration loading
 func BenchmarkLoadConfig(b *testing.B) {
 	tmpDir := b.TempDir()
-	
+
 	configFile := filepath.Join(tmpDir, ".mktodo.yml")
 	configContent := `---
 todofile: README.md
@@ -25,7 +25,7 @@ projects:
     title: Project 2
     parent: project1
 `
-	
+
 	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
 		b.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func BenchmarkValidateConfig(b *testing.B) {
 	parent1 := "nil"
 	parent2 := "project1"
 	parent3 := "project2"
-	
+
 	cfg := &Config{
 		TodoFile: "README.md",
 		Projects: []ProjectConfig{
@@ -69,11 +69,11 @@ func BenchmarkComplexConfigValidation(b *testing.B) {
 	// Create a complex configuration with many projects
 	nilVal := "nil"
 	defaultVal := "default"
-	
+
 	projects := []ProjectConfig{
 		{Name: "default", Title: "TODO", Parent: &nilVal},
 	}
-	
+
 	for i := 0; i < 20; i++ {
 		parentCopy := defaultVal
 		projects = append(projects, ProjectConfig{
@@ -82,7 +82,7 @@ func BenchmarkComplexConfigValidation(b *testing.B) {
 			Parent: &parentCopy,
 		})
 	}
-	
+
 	cfg := &Config{
 		TodoFile: "README.md",
 		Projects: projects,
