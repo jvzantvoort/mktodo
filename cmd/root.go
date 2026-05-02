@@ -15,6 +15,13 @@ func SetVersion(v, c, d string) {
 	version = v
 	commit = c
 	date = d
+	// Update the root command version
+	rootCmd.Version = version
+	// Set custom version template to show commit and date
+	rootCmd.SetVersionTemplate(`{{with .Name}}{{printf "%s " .}}{{end}}{{printf "version %s" .Version}}
+commit: ` + commit + `
+built: ` + date + `
+`)
 }
 
 var rootCmd = &cobra.Command{

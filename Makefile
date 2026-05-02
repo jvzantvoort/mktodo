@@ -1,4 +1,4 @@
-.PHONY: build test lint coverage clean install check help
+.PHONY: build test lint coverage clean install check help benchmark
 
 # Build variables
 BINARY_NAME=mktodo
@@ -26,6 +26,10 @@ test-coverage: ## Run tests with coverage
 	@echo "Coverage report generated: coverage.html"
 
 coverage: test-coverage ## Alias for test-coverage
+
+benchmark: ## Run performance benchmarks
+	@echo "Running benchmarks..."
+	go test -bench=. -benchmem -run=^$$ ./internal/...
 
 lint: ## Run linters
 	@echo "Running linters..."
