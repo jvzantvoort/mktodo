@@ -1,0 +1,9 @@
+---
+todofile: README.md
+projects:
+  - name: project1
+    title: Project 1
+    parent: nil
+  - name: project1
+    title: Duplicate Project 1
+    parent: nil

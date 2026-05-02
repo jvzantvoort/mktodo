@@ -1,0 +1,6 @@
+---
+todofile: README.md
+projects:
+  - name: orphan
+    title: Orphan Project
+    parent: nonexistent

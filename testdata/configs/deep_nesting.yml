@@ -1,0 +1,24 @@
+---
+todofile: README.md
+projects:
+  - name: level1
+    title: Level 1
+    parent: nil
+  - name: level2
+    title: Level 2
+    parent: level1
+  - name: level3
+    title: Level 3
+    parent: level2
+  - name: level4
+    title: Level 4
+    parent: level3
+  - name: level5
+    title: Level 5
+    parent: level4
+  - name: level6
+    title: Level 6
+    parent: level5
+  - name: level7
+    title: Level 7 - Too Deep!
+    parent: level6
