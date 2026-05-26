@@ -77,7 +77,7 @@ func (m Model) viewNormal() string {
 	b.WriteString("\n")
 
 	// Help text
-	help := "space:toggle • e:edit • a:add • d:delete • s:save • esc:menu • q:quit"
+	help := "space:toggle • e:edit • a:add • d:del • s:save • -/+:move • x:cut • p:paste • esc:menu"
 	b.WriteString(helpStyle.Render(help))
 
 	// Error message if any
@@ -111,7 +111,11 @@ func (m Model) viewMenu() string {
 func (m Model) viewEdit() string {
 	var b strings.Builder
 
-	b.WriteString("Edit TODO:\n\n")
+	title := "Edit TODO:"
+	if m.isAdding {
+		title = "New TODO:"
+	}
+	b.WriteString(title + "\n\n")
 	b.WriteString(m.editInput + "█\n\n")
 	b.WriteString(helpStyle.Render("enter:save • esc:cancel"))
 
@@ -165,6 +169,9 @@ func (m Model) buildStatusBar() string {
 
 	if m.hasChanges {
 		status += " | [UNSAVED]"
+	}
+	if m.clipboard != nil {
+		status += " | [CLIPBOARD]"
 	}
 
 	return status

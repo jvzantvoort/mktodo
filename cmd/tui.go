@@ -44,7 +44,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(repo.Root)
+	cfg, err := config.Load(repo.ConfigPath())
 	if err != nil {
 		return messages.Errorf("ERR_CONFIG_LOAD_FAILED", err)
 	}

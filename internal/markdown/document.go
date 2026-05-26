@@ -153,7 +153,29 @@ func (d *Document) AddItem(proj *project.Project, description string) (*todo.Ite
 		// Find the header section
 		for i, section := range d.Sections {
 			if section.Type == SectionHeader && section.Project == proj {
-				// Insert new TODO section after header
+				// Check if header section has content beyond the header line
+				// Header sections may contain: header line, blank line, then description
+				headerEndIdx := 1 // At minimum, keep the header line
+
+				// Skip any blank lines immediately after header
+				for headerEndIdx < len(section.Lines) && section.Lines[headerEndIdx] == "" {
+					headerEndIdx++
+				}
+
+				// If there's additional content after header, split the section
+				var newOtherSection *Section
+				if headerEndIdx < len(section.Lines) {
+					// Create new section for the remaining content
+					newOtherSection = &Section{
+						Type:      SectionOther,
+						Lines:     section.Lines[headerEndIdx:],
+						StartLine: section.StartLine + headerEndIdx,
+					}
+					// Trim the header section to just the header (and blank lines)
+					section.Lines = section.Lines[:headerEndIdx]
+				}
+
+				// Create new TODO section after header
 				newSection := &Section{
 					Type:      SectionTODO,
 					Lines:     []string{},
@@ -161,8 +183,27 @@ func (d *Document) AddItem(proj *project.Project, description string) (*todo.Ite
 					StartLine: section.StartLine + len(section.Lines),
 				}
 
-				// Insert into sections slice
-				d.Sections = append(d.Sections[:i+1], append([]*Section{newSection}, d.Sections[i+1:]...)...)
+				// Create blank line section for proper formatting if there's content after
+				var blankSection *Section
+				if newOtherSection != nil || i+1 < len(d.Sections) {
+					blankSection = &Section{
+						Type:      SectionOther,
+						Lines:     []string{""},
+						StartLine: newSection.StartLine,
+					}
+				}
+
+				// Insert new sections into the document
+				if newOtherSection != nil {
+					// Insert: header, TODO, blank, other content
+					d.Sections = append(d.Sections[:i+1], append([]*Section{newSection, blankSection, newOtherSection}, d.Sections[i+1:]...)...)
+				} else if blankSection != nil {
+					// Insert: header, TODO, blank, (existing next sections)
+					d.Sections = append(d.Sections[:i+1], append([]*Section{newSection, blankSection}, d.Sections[i+1:]...)...)
+				} else {
+					// Insert: header, TODO (nothing after)
+					d.Sections = append(d.Sections[:i+1], append([]*Section{newSection}, d.Sections[i+1:]...)...)
+				}
 				targetSection = newSection
 				break
 			}

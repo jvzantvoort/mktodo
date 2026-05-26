@@ -27,16 +27,17 @@ func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) Model
 	l.Styles.HelpStyle = helpStyle
 
 	return Model{
-		config:   cfg,
-		doc:      doc,
-		projects: projects,
-		list:     l,
-		items:    items,
-		mode:     modeNormal,
-		todoPath: todoPath,
+		config:     cfg,
+		doc:        doc,
+		projects:   projects,
+		list:       l,
+		items:      items,
+		mode:       modeNormal,
+		todoPath:   todoPath,
+		confirmIdx: -1,
 		menuItems: []string{
 			"s - Save changes",
-			"q - Quit (lose changes)",
+			"q - Quit (discard changes)",
 			"x - Save and quit",
 			"Esc - Cancel",
 		},
@@ -48,14 +49,12 @@ func (m Model) Init() tea.Cmd {
 }
 
 func buildItemList(doc *markdown.Document) []list.Item {
-	items := make([]list.Item, 0)
-
+	items := make([]list.Item, 0, len(doc.Items))
 	for _, item := range doc.Items {
 		items = append(items, todoItem{
 			item:    item,
 			project: item.Project,
 		})
 	}
-
 	return items
 }

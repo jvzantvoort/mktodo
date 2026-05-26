@@ -2,7 +2,6 @@ package tui
 
 import (
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
@@ -26,17 +25,21 @@ type Model struct {
 	mode     mode
 
 	// Edit state
-	editInput  string
-	editCursor int
+	editInput string
+	isAdding  bool // true when adding a new item, false when editing existing
 
 	// Confirm dialog state
-	confirmMsg    string
-	confirmAction func() tea.Msg
+	confirmMsg  string
+	confirmIdx  int  // list index of item pending deletion (-1 if none)
+	confirmQuit bool // true = confirming quit-with-changes, false = confirming delete
+
+	// Clipboard for cut/paste
+	clipboard        *markdown.Item
+	clipboardProject *project.Project
 
 	// Menu state
-	menuVisible bool
-	menuItems   []string
-	menuCursor  int
+	menuItems  []string
+	menuCursor int
 
 	// File state
 	todoPath   string
@@ -69,15 +72,14 @@ func (t todoItem) Title() string {
 }
 
 func (t todoItem) Description() string {
+	if t.project == nil {
+		return "(no project)"
+	}
 	return "Project: " + t.project.Title
 }
 
 func (t todoItem) FilterValue() string {
 	return t.item.Description
-}
-
-type confirmMsg struct {
-	confirmed bool
 }
 
 type saveMsg struct {
