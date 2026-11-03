@@ -3,6 +3,7 @@ package markdown
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -108,6 +109,10 @@ func TestWriter_AtomicWrite(t *testing.T) {
 }
 
 func TestWriter_PreservesPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not preserve Unix permission bits")
+	}
+
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test.md")
 

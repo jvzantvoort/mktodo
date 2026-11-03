@@ -3,6 +3,7 @@ package markdown
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jvzantvoort/mktodo/internal/config"
@@ -160,7 +161,7 @@ func TestDocument_String(t *testing.T) {
 
 	// Compare
 	docStr := doc.String()
-	if docStr != string(original) {
+	if strings.ReplaceAll(docStr, "\r\n", "\n") != strings.ReplaceAll(string(original), "\r\n", "\n") {
 		t.Errorf("Document.String() doesn't match original:\ngot:\n%s\nwant:\n%s", docStr, string(original))
 	}
 }
