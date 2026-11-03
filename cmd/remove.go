@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jvzantvoort/mktodo/internal/markdown"
-	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +18,7 @@ Examples:
   mktodo remove "Complete documentation"
   mktodo rm -p lego "Old task"
   mktodo rm -p lego.technic "Build crane" --yes`,
-	Args: cobra.MinimumNArgs(1),
+	Args: usageArgs(cobra.MinimumNArgs(1)),
 	RunE: runRemove,
 }
 
@@ -43,62 +41,28 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	// Build query from args
 	query := strings.Join(args, " ")
 
-	// Load document
-	todoPath := repo.ResolvePath(cfg.TodoFile)
-	doc, err := markdown.LoadDocument(todoPath, cfg)
+	doc, err := loadDocument(repo, cfg)
 	if err != nil {
-		return fmt.Errorf("loading document: %w", err)
+		return err
 	}
 
-	// Find matching items
-	var candidates []*markdown.Item
-	if projectPath != "" {
-		proj, err := project.FindByPath(doc.Projects, projectPath)
-		if err != nil {
-			return fmt.Errorf("project %q not found", projectPath)
-		}
-		candidates = markdown.MatchItems(doc.GetItemsByProject(proj), query)
-	} else {
-		candidates = doc.FindItem(query)
+	item, err := findOneItem(doc, projectPath, query)
+	if err != nil {
+		return err
 	}
 
-	if len(candidates) == 0 {
-		return fmt.Errorf("no matching TODO items found for %q", query)
+	if !skipConfirm && !confirm(messages.Prompt("PROMPT_CONFIRM_REMOVE", item.Description)) {
+		return messages.Errorf("ERR_OPERATION_CANCELLED")
 	}
 
-	if len(candidates) > 1 {
-		fmt.Printf("Multiple items match %q:\n", query)
-		for i, item := range candidates {
-			status := " "
-			if item.Done {
-				status = "X"
-			}
-			fmt.Printf("  %d. [%s] %s\n", i+1, status, item.Description)
-		}
-		return fmt.Errorf("please be more specific")
-	}
-
-	item := candidates[0]
-
-	// Confirm deletion
-	if !skipConfirm {
-		if !confirm(messages.Prompt("PROMPT_CONFIRM_REMOVE", item.Description)) {
-			return messages.Errorf("ERR_OPERATION_CANCELLED")
-		}
-	}
-
-	// Remove the item
 	if err := doc.RemoveItem(item); err != nil {
-		return fmt.Errorf("removing item: %w", err)
+		return messages.Errorf("ERR_OPERATION_FAILED", err)
+	}
+	if err := saveDocument(doc); err != nil {
+		return err
 	}
 
-	// Save
-	if err := markdown.SaveDocument(todoPath, doc); err != nil {
-		return fmt.Errorf("saving document: %w", err)
-	}
-
-	fmt.Printf("✗ Removed: %s\n", item.Description)
-
+	fmt.Println(messages.Prompt("MSG_REMOVED", item.Description))
 	return nil
 }
 

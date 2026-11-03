@@ -64,6 +64,13 @@ func TestParse(t *testing.T) {
 			wantDesc:  "fixme: needs refactoring",
 		},
 		{
+			name:      "FIXME without colon is not FIXME",
+			line:      "- [ ] FIXMEs later",
+			wantItem:  true,
+			wantFIXME: false,
+			wantDesc:  "FIXMEs later",
+		},
+		{
 			name:      "FIXME item mixed case",
 			line:      "- [ ] FiXmE: broken feature",
 			wantItem:  true,

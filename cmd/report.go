@@ -3,11 +3,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +19,7 @@ var reportCmd = &cobra.Command{
 Examples:
   mktodo report
   mktodo report --format markdown -o report.md`,
+	Args: usageArgs(cobra.NoArgs),
 	RunE: runReport,
 }
 
@@ -33,12 +34,6 @@ type projectStats struct {
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
-	repo, cfg, err := loadConfig(cmd)
-	if err != nil {
-		return err
-	}
-
-	// Get flags
 	format, err := cmd.Flags().GetString("format")
 	if err != nil {
 		return err
@@ -47,12 +42,17 @@ func runReport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err = validateFormat(format, "text", "markdown", "json"); err != nil {
+		return err
+	}
 
-	// Load document
-	todoPath := repo.ResolvePath(cfg.TodoFile)
-	doc, err := markdown.LoadDocument(todoPath, cfg)
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("loading document: %w", err)
+		return err
+	}
+	doc, err := loadDocument(repo, cfg)
+	if err != nil {
+		return err
 	}
 
 	// Calculate stats for each project
@@ -90,18 +90,17 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("generating report: %w", err)
+		return messages.Errorf("ERR_OPERATION_FAILED", err)
 	}
 
-	// Write output
-	if outputFile != "" {
-		if err := os.WriteFile(outputFile, []byte(output), 0644); err != nil {
-			return fmt.Errorf("writing output file: %w", err)
-		}
-		fmt.Printf("Report written to %s\n", outputFile)
-	} else {
+	if outputFile == "" {
 		fmt.Print(output)
+		return nil
 	}
+	if err := markdown.NewWriter(outputFile).WriteString(output); err != nil {
+		return fileError(messages.Errorf("ERR_FILE_WRITE_FAILED", outputFile, err))
+	}
+	fmt.Println(messages.Prompt("MSG_REPORT_WRITTEN", outputFile))
 
 	return nil
 }

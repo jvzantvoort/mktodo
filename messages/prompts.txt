@@ -66,6 +66,8 @@ MSG_PROJECT_FIXME=- FIXME: %d
 
 MSG_PROJECT_COMPLETION=- Completion: %.1f%%
 
+MSG_REPORT_WRITTEN=Report written to %s
+
 # General Messages
 MSG_SUCCESS=Success!
 

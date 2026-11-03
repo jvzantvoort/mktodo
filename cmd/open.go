@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jvzantvoort/mktodo/internal/markdown"
-	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +18,7 @@ Equivalent to: mktodo list --open
 Examples:
   mktodo open
   mktodo open -p lego.technic`,
+	Args: usageArgs(cobra.NoArgs),
 	RunE: runOpen,
 }
 
@@ -33,23 +34,13 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Load document
-	todoPath := repo.ResolvePath(cfg.TodoFile)
-	doc, err := markdown.LoadDocument(todoPath, cfg)
+	doc, err := loadDocument(repo, cfg)
 	if err != nil {
-		return fmt.Errorf("loading document: %w", err)
+		return err
 	}
-
-	// Get items
-	var items []*markdown.Item
-	if projectPath != "" {
-		proj, err := project.FindByPath(doc.Projects, projectPath)
-		if err != nil {
-			return fmt.Errorf("project %q not found", projectPath)
-		}
-		items = doc.GetItemsByProject(proj)
-	} else {
-		items = doc.Items
+	items, err := projectItems(doc, projectPath)
+	if err != nil {
+		return err
 	}
 
 	// Filter to open items only
@@ -67,7 +58,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(fixmeItems) > 0 {
-		fmt.Println("🔴 FIXME Items:")
+		fmt.Println(messages.Prompt("MSG_FIXME_ITEMS"))
 		for _, item := range fixmeItems {
 			projectInfo := ""
 			if item.Project != nil {
@@ -79,7 +70,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(regularItems) > 0 {
-		fmt.Println("Open Items:")
+		fmt.Println(messages.Prompt("MSG_OPEN_ITEMS"))
 		for _, item := range regularItems {
 			projectInfo := ""
 			if item.Project != nil {
@@ -89,14 +80,15 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if len(items) == 0 {
-		fmt.Println("✓ No open TODO items!")
-	} else {
-		fmt.Printf("\nTotal: %d open items", len(items))
-		if len(fixmeItems) > 0 {
-			fmt.Printf(" (%d FIXME)", len(fixmeItems))
-		}
+	switch {
+	case len(items) == 0:
+		fmt.Println(messages.Prompt("MSG_NO_OPEN"))
+	case len(fixmeItems) > 0:
 		fmt.Println()
+		fmt.Println(messages.Prompt("MSG_TOTAL_OPEN", len(items), len(fixmeItems)))
+	default:
+		fmt.Println()
+		fmt.Println(messages.Prompt("MSG_TOTAL_OPEN_NO_FIXME", len(items)))
 	}
 
 	return nil

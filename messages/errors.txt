@@ -5,8 +5,8 @@ Run 'git init' to initialize a repository, or navigate to an existing repository
 ERR_GIT_ROOT_FAILED=Error: Failed to determine git repository root: %s
 
 # Configuration Errors
-ERR_CONFIG_NOT_FOUND=Error: Configuration file not found.
-Create .mktodo.yml in the repository root.
+ERR_CONFIG_NOT_FOUND=Error: Configuration file not found: %s
+Create .mktodo.yml in the repository root, or pass --config.
 
 ERR_CONFIG_LOAD_FAILED=Error: Failed to load configuration: %s
 
@@ -17,6 +17,7 @@ Available projects: %s
 
 # File Errors
 ERR_FILE_NOT_FOUND=Error: File '%s' not found.
+Run 'mktodo add' to create it.
 
 ERR_FILE_READ_FAILED=Error: Failed to read file '%s': %s
 
@@ -28,6 +29,7 @@ ERR_FILE_CREATE_FAILED=Error: Failed to create file '%s': %s
 ERR_NO_ITEMS_FOUND=No TODO items found.
 
 ERR_ITEM_NOT_FOUND=Error: TODO item not found: '%s'
+Use 'mktodo list' to see all items.
 
 ERR_ITEM_AMBIGUOUS=Error: Multiple TODO items match '%s':
 %s
@@ -45,6 +47,8 @@ ERR_OPERATION_FAILED=Error: Operation failed: %s
 ERR_INVALID_FORMAT=Error: Invalid format '%s'. Valid formats: %s
 
 ERR_INVALID_INPUT=Error: Invalid input: %s
+
+ERR_CONFLICTING_FLAGS=Error: --%s and --%s cannot be used together.
 
 # Parse Errors
 ERR_PARSE_FAILED=Error: Failed to parse markdown: %s

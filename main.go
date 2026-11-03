@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/jvzantvoort/mktodo/cmd"
@@ -15,8 +14,5 @@ var (
 
 func main() {
 	cmd.SetVersion(version, commit, date)
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	os.Exit(cmd.Execute())
 }
