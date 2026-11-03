@@ -35,7 +35,7 @@ projects:
 `)
 
 	err := runList(listCmd, nil)
-	if err == nil || !strings.Contains(err.Error(), "parent 'lego' does not exist") {
+	if err == nil || !strings.Contains(err.Error(), "Project 'technic' references non-existent parent 'lego'") {
 		t.Fatalf("runList() error = %v, want a validation error about the missing parent", err)
 	}
 }

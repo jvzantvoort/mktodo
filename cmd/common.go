@@ -27,9 +27,10 @@ func loadConfig(cmd *cobra.Command) (*git.Repository, *config.Config, error) {
 		return nil, nil, gitError(messages.Errorf("ERR_NOT_IN_GIT_REPO"))
 	}
 
-	cfgPath := repo.ConfigPath()
+	cfgPath, cfgName := repo.ConfigPath(), ".mktodo.yml"
 	if flag := cmd.Flag("config"); flag != nil && flag.Value.String() != "" {
-		if cfgPath, err = filepath.Abs(flag.Value.String()); err != nil {
+		cfgName = flag.Value.String()
+		if cfgPath, err = filepath.Abs(cfgName); err != nil {
 			return nil, nil, configError(messages.Errorf("ERR_CONFIG_LOAD_FAILED", err))
 		}
 	}
@@ -39,11 +40,15 @@ func loadConfig(cmd *cobra.Command) (*git.Repository, *config.Config, error) {
 	}
 
 	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		return nil, nil, configError(messages.Errorf("ERR_CONFIG_LOAD_FAILED", err))
+	if err == nil {
+		err = cfg.Validate()
 	}
-	if err := cfg.Validate(); err != nil {
-		return nil, nil, configError(messages.Errorf("ERR_CONFIG_INVALID", err))
+	var invalid *config.ValidationError
+	switch {
+	case errors.As(err, &invalid):
+		return nil, nil, configError(messages.Errorf("ERR_CONFIG_INVALID_IN", cfgName, invalid))
+	case err != nil:
+		return nil, nil, configError(messages.Errorf("ERR_CONFIG_LOAD_FAILED", err))
 	}
 
 	return repo, cfg, nil
@@ -158,6 +163,34 @@ func findOneItem(doc *markdown.Document, projectPath, query string) (*markdown.I
 		fmt.Fprintf(&list, "  %d. %s\n", i+1, item.String())
 	}
 	return nil, usageError(messages.Errorf("ERR_ITEM_AMBIGUOUS", query, strings.TrimRight(list.String(), "\n")))
+}
+
+// findItems returns the items to act on: with all, every item whose
+// description contains query; otherwise the single best match (see
+// findOneItem).
+func findItems(doc *markdown.Document, projectPath, query string, all bool) ([]*markdown.Item, error) {
+	if !all {
+		item, err := findOneItem(doc, projectPath, query)
+		if err != nil {
+			return nil, err
+		}
+		return []*markdown.Item{item}, nil
+	}
+
+	items, err := projectItems(doc, projectPath)
+	if err != nil {
+		return nil, err
+	}
+	var matches []*markdown.Item
+	for _, item := range items {
+		if item.Matches(strings.TrimSpace(query)) {
+			matches = append(matches, item)
+		}
+	}
+	if len(matches) == 0 {
+		return nil, usageError(messages.Errorf("ERR_ITEM_NOT_FOUND", query))
+	}
+	return matches, nil
 }
 
 // validateFormat checks an output format flag against the allowed values.
