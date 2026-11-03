@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jvzantvoort/mktodo/internal/config"
-	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
 
@@ -26,16 +25,9 @@ Examples:
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
-	// Check we're in a git repository
-	repo, err := git.FindRepository()
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	// Load configuration
-	cfg, err := config.Load(repo.ConfigPath())
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
 	// Get flags
@@ -65,11 +57,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("project %q not found", projectPath)
 		}
-		for _, item := range doc.GetItemsByProject(proj) {
-			if item.Matches(query) {
-				candidates = append(candidates, item)
-			}
-		}
+		candidates = markdown.MatchItems(doc.GetItemsByProject(proj), query)
 	} else {
 		candidates = doc.FindItem(query)
 	}
@@ -94,12 +82,8 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	// Confirm deletion
 	if !skipConfirm {
-		fmt.Printf("Remove: %s\n", item.Description)
-		fmt.Print("Are you sure? [y/N] ")
-		var response string
-		_, _ = fmt.Scanln(&response) // empty input means "no"
-		if strings.ToLower(response) != "y" {
-			return fmt.Errorf("cancelled")
+		if !confirm(messages.Prompt("PROMPT_CONFIRM_REMOVE", item.Description)) {
+			return messages.Errorf("ERR_OPERATION_CANCELLED")
 		}
 	}
 

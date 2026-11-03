@@ -3,6 +3,7 @@ package tui
 
 import (
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
@@ -17,16 +18,18 @@ const (
 	modeMenu
 )
 
+// Model is the Bubbletea model for the TUI.
 type Model struct {
 	config   *config.Config
 	doc      *markdown.Document
 	projects []*project.Project
 	list     list.Model
-	items    []list.Item
 	mode     mode
 
-	// Edit state
-	editInput string
+	// Edit state: input holds the text being edited; adding is true when
+	// the input creates a new item instead of changing the selected one.
+	input  textinput.Model
+	adding bool
 
 	// Confirm dialog state
 	confirmMsg    string
@@ -67,13 +70,12 @@ func (t todoItem) Title() string {
 }
 
 func (t todoItem) Description() string {
+	if t.project == nil {
+		return "Project: (none)"
+	}
 	return "Project: " + t.project.Title
 }
 
 func (t todoItem) FilterValue() string {
 	return t.item.Description
-}
-
-type saveMsg struct {
-	err error
 }

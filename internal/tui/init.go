@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
@@ -32,12 +33,16 @@ func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) (Mode
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
 
+	input := textinput.New()
+	input.Placeholder = "Description"
+	input.CharLimit = 500
+
 	return Model{
 		config:   cfg,
 		doc:      doc,
 		projects: projects,
 		list:     l,
-		items:    items,
+		input:    input,
 		mode:     modeNormal,
 		todoPath: todoPath,
 		menuItems: []string{
@@ -49,6 +54,7 @@ func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) (Mode
 	}, nil
 }
 
+// Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
 	return nil
 }

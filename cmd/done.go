@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jvzantvoort/mktodo/internal/config"
-	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/spf13/cobra"
@@ -25,16 +23,9 @@ Examples:
 }
 
 func runDone(cmd *cobra.Command, args []string) error {
-	// Check we're in a git repository
-	repo, err := git.FindRepository()
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	// Load configuration
-	cfg, err := config.Load(repo.ConfigPath())
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
 	// Get flags
@@ -60,12 +51,7 @@ func runDone(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("project %q not found", projectPath)
 		}
-		// Search within project
-		for _, item := range doc.GetItemsByProject(proj) {
-			if item.Matches(query) {
-				candidates = append(candidates, item)
-			}
-		}
+		candidates = markdown.MatchItems(doc.GetItemsByProject(proj), query)
 	} else {
 		// Search all items
 		candidates = doc.FindItem(query)

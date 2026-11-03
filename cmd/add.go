@@ -1,12 +1,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"strings"
 
 	"github.com/jvzantvoort/mktodo/internal/config"
-	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/jvzantvoort/mktodo/messages"
@@ -28,16 +28,9 @@ Examples:
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {
-	// Check we're in a git repository
-	repo, err := git.FindRepository()
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return messages.Errorf("ERR_NOT_IN_GIT_REPO")
-	}
-
-	// Load configuration
-	cfg, err := config.Load(repo.ConfigPath())
-	if err != nil {
-		return messages.Errorf("ERR_CONFIG_LOAD_FAILED", err)
+		return err
 	}
 
 	// Get flags
@@ -50,56 +43,25 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Build description from args
 	description := strings.Join(args, " ")
-
-	// Check if file exists
 	todoPath := repo.ResolvePath(cfg.TodoFile)
-	fileExists := true
-	if _, statErr := os.Stat(todoPath); os.IsNotExist(statErr) {
-		fileExists = false
-		if !skipConfirm {
-			fmt.Print(messages.Prompt("PROMPT_CREATE_FILE", cfg.TodoFile))
-			var response string
-			_, _ = fmt.Scanln(&response) // empty input means "no"
-			if strings.ToLower(response) != "y" {
-				return messages.Errorf("ERR_OPERATION_CANCELLED")
-			}
-		}
+
+	doc, err := loadOrCreateDocument(todoPath, cfg, skipConfirm)
+	if err != nil {
+		return err
 	}
 
-	// Load or create document
-	var doc *markdown.Document
-	if fileExists {
-		doc, err = markdown.LoadDocument(todoPath, cfg)
-		if err != nil {
-			return messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
-		}
-	} else {
-		// Create new document with project structure
-		projects, buildErr := project.BuildHierarchy(cfg)
-		if buildErr != nil {
-			return messages.Errorf("ERR_CONFIG_INVALID", buildErr)
-		}
-		doc = &markdown.Document{
-			Path:     todoPath,
-			Sections: []*markdown.Section{},
-			Projects: projects,
-			Items:    []*markdown.Item{},
-		}
-		// Add project headers
-		for _, proj := range project.GetRootProjects(projects) {
-			addProjectHeaders(doc, proj)
-		}
-	}
-
-	// Find the target project
 	proj, err := project.FindByPath(doc.Projects, projectPath)
 	if err != nil {
 		return messages.Errorf("ERR_PROJECT_NOT_FOUND", projectPath, getAvailableProjects(doc.Projects))
 	}
 
-	// Add the item
+	// The file exists but has no header for this project: ask before adding one.
+	if !doc.HasSection(proj) && !skipConfirm &&
+		!confirm(messages.Prompt("PROMPT_CREATE_SECTION", proj.Title, cfg.TodoFile)) {
+		return messages.Errorf("ERR_OPERATION_CANCELLED")
+	}
+
 	item, err := doc.AddItem(proj, description)
 	if err != nil {
 		return messages.Errorf("ERR_OPERATION_FAILED", err)
@@ -120,27 +82,40 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// addProjectHeaders recursively adds project headers to a new document
-func addProjectHeaders(doc *markdown.Document, proj *project.Project) {
-	header := strings.Repeat("#", proj.Level) + " " + proj.Title
-	doc.Sections = append(doc.Sections, &markdown.Section{
-		Type:    markdown.SectionHeader,
-		Level:   proj.Level,
-		Title:   proj.Title,
-		Project: proj,
-		Lines:   []string{header, ""},
-	})
-
-	for _, child := range proj.Children {
-		addProjectHeaders(doc, child)
+// loadOrCreateDocument loads the TODO file. If it doesn't exist, it asks
+// before creating it (unless skipConfirm) and starts a document with a
+// header for every configured project.
+func loadOrCreateDocument(todoPath string, cfg *config.Config, skipConfirm bool) (*markdown.Document, error) {
+	doc, err := markdown.LoadDocument(todoPath, cfg)
+	if err == nil {
+		return doc, nil
 	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
+	}
+
+	if !skipConfirm && !confirm(messages.Prompt("PROMPT_CREATE_FILE", cfg.TodoFile)) {
+		return nil, messages.Errorf("ERR_OPERATION_CANCELLED")
+	}
+
+	projects, err := project.BuildHierarchy(cfg)
+	if err != nil {
+		return nil, messages.Errorf("ERR_CONFIG_INVALID", err)
+	}
+	doc = markdown.NewDocument(todoPath, projects)
+	for _, proj := range project.Sorted(projects) {
+		if err := doc.EnsureSection(proj); err != nil {
+			return nil, messages.Errorf("ERR_OPERATION_FAILED", err)
+		}
+	}
+	return doc, nil
 }
 
 // getAvailableProjects returns a comma-separated list of project names
 func getAvailableProjects(projects map[string]*project.Project) string {
 	var names []string
-	for name := range projects {
-		names = append(names, name)
+	for _, proj := range project.Sorted(projects) {
+		names = append(names, proj.FullPath())
 	}
 	return strings.Join(names, ", ")
 }

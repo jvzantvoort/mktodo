@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"errors"
+	"io/fs"
+
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jvzantvoort/mktodo/internal/config"
-	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/jvzantvoort/mktodo/internal/tui"
@@ -37,35 +38,25 @@ Examples:
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {
-	// Find git repository
-	repo, err := git.FindRepository()
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return messages.Errorf("ERR_NOT_IN_GIT_REPO")
-	}
-
-	// Load configuration
-	cfg, err := config.Load(repo.ConfigPath())
-	if err != nil {
-		return messages.Errorf("ERR_CONFIG_LOAD_FAILED", err)
+		return err
 	}
 
 	// Get todo file path
 	todoPath := repo.ResolvePath(cfg.TodoFile)
 
-	// Parse or create document
+	// Load the document, or start an empty one if the file doesn't exist yet.
+	// Any other error is reported rather than risking a save over the file.
 	doc, err := markdown.LoadDocument(todoPath, cfg)
-	if err != nil {
-		// If file doesn't exist, create minimal document
-		projectMap, buildErr := project.BuildHierarchy(cfg)
+	if errors.Is(err, fs.ErrNotExist) {
+		projects, buildErr := project.BuildHierarchy(cfg)
 		if buildErr != nil {
 			return messages.Errorf("ERR_CONFIG_INVALID", buildErr)
 		}
-		doc = &markdown.Document{
-			Path:     todoPath,
-			Sections: []*markdown.Section{},
-			Projects: projectMap,
-			Items:    []*markdown.Item{},
-		}
+		doc = markdown.NewDocument(todoPath, projects)
+	} else if err != nil {
+		return messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
 	}
 
 	// Create TUI model
