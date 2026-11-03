@@ -48,8 +48,14 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	format, _ := cmd.Flags().GetString("format")
-	outputFile, _ := cmd.Flags().GetString("output")
+	format, err := cmd.Flags().GetString("format")
+	if err != nil {
+		return err
+	}
+	outputFile, err := cmd.Flags().GetString("output")
+	if err != nil {
+		return err
+	}
 
 	// Load document
 	todoPath := repo.ResolvePath(cfg.TodoFile)
@@ -129,13 +135,13 @@ func generateTextReport(stats map[string]*projectStats, doc *markdown.Document) 
 
 	sb.WriteString("\nOverall Summary\n")
 	sb.WriteString("---------------\n")
-	sb.WriteString(fmt.Sprintf("Total Items:  %d\n", totalItems))
-	sb.WriteString(fmt.Sprintf("Open:         %d\n", openItems))
-	sb.WriteString(fmt.Sprintf("Done:         %d\n", doneItems))
-	sb.WriteString(fmt.Sprintf("FIXME:        %d\n", fixmeItems))
+	fmt.Fprintf(&sb, "Total Items:  %d\n", totalItems)
+	fmt.Fprintf(&sb, "Open:         %d\n", openItems)
+	fmt.Fprintf(&sb, "Done:         %d\n", doneItems)
+	fmt.Fprintf(&sb, "FIXME:        %d\n", fixmeItems)
 	if totalItems > 0 {
 		completion := float64(doneItems) / float64(totalItems) * 100
-		sb.WriteString(fmt.Sprintf("Completion:   %.1f%%\n", completion))
+		fmt.Fprintf(&sb, "Completion:   %.1f%%\n", completion)
 	}
 
 	return sb.String()
@@ -151,10 +157,10 @@ func generateTextProjectReport(sb *strings.Builder, proj *project.Project, stats
 		if s.FIXME > 0 {
 			fixmeTag = fmt.Sprintf(" [%d FIXME]", s.FIXME)
 		}
-		sb.WriteString(fmt.Sprintf("%s%s: %d items (%.0f%% done)%s\n",
-			indent, proj.Title, s.Total, completion, fixmeTag))
+		fmt.Fprintf(sb, "%s%s: %d items (%.0f%% done)%s\n",
+			indent, proj.Title, s.Total, completion, fixmeTag)
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s: no items\n", indent, proj.Title))
+		fmt.Fprintf(sb, "%s%s: no items\n", indent, proj.Title)
 	}
 
 	for _, child := range proj.Children {
@@ -180,13 +186,13 @@ func generateMarkdownReport(stats map[string]*projectStats, doc *markdown.Docume
 	fixmeItems := len(doc.GetFIXMEItems())
 
 	sb.WriteString("\n## Overall Summary\n\n")
-	sb.WriteString(fmt.Sprintf("- **Total Items:** %d\n", totalItems))
-	sb.WriteString(fmt.Sprintf("- **Open:** %d\n", openItems))
-	sb.WriteString(fmt.Sprintf("- **Done:** %d\n", doneItems))
-	sb.WriteString(fmt.Sprintf("- **FIXME:** %d\n", fixmeItems))
+	fmt.Fprintf(&sb, "- **Total Items:** %d\n", totalItems)
+	fmt.Fprintf(&sb, "- **Open:** %d\n", openItems)
+	fmt.Fprintf(&sb, "- **Done:** %d\n", doneItems)
+	fmt.Fprintf(&sb, "- **FIXME:** %d\n", fixmeItems)
 	if totalItems > 0 {
 		completion := float64(doneItems) / float64(totalItems) * 100
-		sb.WriteString(fmt.Sprintf("- **Completion:** %.1f%%\n", completion))
+		fmt.Fprintf(&sb, "- **Completion:** %.1f%%\n", completion)
 	}
 
 	return sb.String()
@@ -196,17 +202,17 @@ func generateMarkdownProjectReport(sb *strings.Builder, proj *project.Project, s
 	header := strings.Repeat("#", level)
 	s := stats[proj.Name]
 
-	sb.WriteString(fmt.Sprintf("%s %s\n\n", header, proj.Title))
+	fmt.Fprintf(sb, "%s %s\n\n", header, proj.Title)
 
 	if s.Total > 0 {
 		completion := float64(s.Done) / float64(s.Total) * 100
-		sb.WriteString(fmt.Sprintf("- Total: %d items\n", s.Total))
-		sb.WriteString(fmt.Sprintf("- Open: %d\n", s.Open))
-		sb.WriteString(fmt.Sprintf("- Done: %d\n", s.Done))
+		fmt.Fprintf(sb, "- Total: %d items\n", s.Total)
+		fmt.Fprintf(sb, "- Open: %d\n", s.Open)
+		fmt.Fprintf(sb, "- Done: %d\n", s.Done)
 		if s.FIXME > 0 {
-			sb.WriteString(fmt.Sprintf("- FIXME: %d\n", s.FIXME))
+			fmt.Fprintf(sb, "- FIXME: %d\n", s.FIXME)
 		}
-		sb.WriteString(fmt.Sprintf("- Completion: %.1f%%\n\n", completion))
+		fmt.Fprintf(sb, "- Completion: %.1f%%\n\n", completion)
 	} else {
 		sb.WriteString("No items.\n\n")
 	}

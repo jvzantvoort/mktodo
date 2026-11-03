@@ -37,7 +37,10 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	projectPath, _ := cmd.Flags().GetString("project")
+	projectPath, err := cmd.Flags().GetString("project")
+	if err != nil {
+		return err
+	}
 
 	// Load document
 	todoPath := repo.ResolvePath(cfg.TodoFile)

@@ -1,3 +1,4 @@
+// Package markdown parses, modifies and writes TODO markdown documents.
 package markdown
 
 import (

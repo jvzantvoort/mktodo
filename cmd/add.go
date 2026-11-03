@@ -41,8 +41,14 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	projectPath, _ := cmd.Flags().GetString("project")
-	skipConfirm, _ := cmd.Flags().GetBool("yes")
+	projectPath, err := cmd.Flags().GetString("project")
+	if err != nil {
+		return err
+	}
+	skipConfirm, err := cmd.Flags().GetBool("yes")
+	if err != nil {
+		return err
+	}
 
 	// Build description from args
 	description := strings.Join(args, " ")
@@ -50,12 +56,12 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Check if file exists
 	todoPath := repo.ResolvePath(cfg.TodoFile)
 	fileExists := true
-	if _, err := os.Stat(todoPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(todoPath); os.IsNotExist(statErr) {
 		fileExists = false
 		if !skipConfirm {
 			fmt.Print(messages.Prompt("PROMPT_CREATE_FILE", cfg.TodoFile))
 			var response string
-			fmt.Scanln(&response)
+			_, _ = fmt.Scanln(&response) // empty input means "no"
 			if strings.ToLower(response) != "y" {
 				return messages.Errorf("ERR_OPERATION_CANCELLED")
 			}
@@ -71,9 +77,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Create new document with project structure
-		projects, err := project.BuildHierarchy(cfg)
-		if err != nil {
-			return messages.Errorf("ERR_CONFIG_INVALID", err)
+		projects, buildErr := project.BuildHierarchy(cfg)
+		if buildErr != nil {
+			return messages.Errorf("ERR_CONFIG_INVALID", buildErr)
 		}
 		doc = &markdown.Document{
 			Path:     todoPath,

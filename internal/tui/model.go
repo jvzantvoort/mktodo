@@ -1,8 +1,8 @@
+// Package tui implements the interactive terminal UI for managing TODO items.
 package tui
 
 import (
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
@@ -26,17 +26,15 @@ type Model struct {
 	mode     mode
 
 	// Edit state
-	editInput  string
-	editCursor int
+	editInput string
 
 	// Confirm dialog state
 	confirmMsg    string
-	confirmAction func() tea.Msg
+	confirmAction func(*Model)
 
 	// Menu state
-	menuVisible bool
-	menuItems   []string
-	menuCursor  int
+	menuItems  []string
+	menuCursor int
 
 	// File state
 	todoPath   string
@@ -74,10 +72,6 @@ func (t todoItem) Description() string {
 
 func (t todoItem) FilterValue() string {
 	return t.item.Description
-}
-
-type confirmMsg struct {
-	confirmed bool
 }
 
 type saveMsg struct {

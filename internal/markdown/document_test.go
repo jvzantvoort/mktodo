@@ -259,12 +259,12 @@ func TestSaveDocument(t *testing.T) {
 	tmpFile := filepath.Join(tmpDir, "test.md")
 
 	// Save document
-	if err := SaveDocument(tmpFile, doc); err != nil {
+	if err = SaveDocument(tmpFile, doc); err != nil {
 		t.Fatalf("SaveDocument() error = %v", err)
 	}
 
 	// Verify file exists
-	if _, err := os.Stat(tmpFile); os.IsNotExist(err) {
+	if _, err = os.Stat(tmpFile); os.IsNotExist(err) {
 		t.Error("file was not created")
 	}
 

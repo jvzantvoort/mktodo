@@ -38,7 +38,10 @@ func runDone(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	projectPath, _ := cmd.Flags().GetString("project")
+	projectPath, err := cmd.Flags().GetString("project")
+	if err != nil {
+		return err
+	}
 
 	// Build query from args
 	query := strings.Join(args, " ")

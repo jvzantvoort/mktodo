@@ -40,10 +40,22 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	projectPath, _ := cmd.Flags().GetString("project")
-	showOpen, _ := cmd.Flags().GetBool("open")
-	showDone, _ := cmd.Flags().GetBool("done")
-	format, _ := cmd.Flags().GetString("format")
+	projectPath, err := cmd.Flags().GetString("project")
+	if err != nil {
+		return err
+	}
+	showOpen, err := cmd.Flags().GetBool("open")
+	if err != nil {
+		return err
+	}
+	showDone, err := cmd.Flags().GetBool("done")
+	if err != nil {
+		return err
+	}
+	format, err := cmd.Flags().GetString("format")
+	if err != nil {
+		return err
+	}
 
 	// Load document
 	todoPath := repo.ResolvePath(cfg.TodoFile)

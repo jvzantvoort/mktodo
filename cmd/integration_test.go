@@ -8,6 +8,7 @@ import (
 
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
+	"github.com/spf13/cobra"
 )
 
 // Helper function to create a test repository
@@ -35,15 +36,20 @@ projects:
 		t.Fatalf("creating config: %v", err)
 	}
 
-	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
+	// Change to temp directory; t.Chdir restores the original directory
+	// when the test finishes.
+	t.Chdir(tmpDir)
 
-	cleanup := func() {
-		os.Chdir(oldWd)
-	}
+	cleanup := func() {}
 
 	return tmpDir, cleanup
+}
+
+func setFlag(t *testing.T, cmd *cobra.Command, name, value string) {
+	t.Helper()
+	if err := cmd.Flags().Set(name, value); err != nil {
+		t.Fatalf("setting flag %q: %v", name, err)
+	}
 }
 
 func TestIntegration_AddCommand(t *testing.T) {
@@ -51,8 +57,8 @@ func TestIntegration_AddCommand(t *testing.T) {
 	defer cleanup()
 
 	// Test adding an item
-	addCmd.Flags().Set("yes", "true")
-	addCmd.Flags().Set("project", "default")
+	setFlag(t, addCmd, "yes", "true")
+	setFlag(t, addCmd, "project", "default")
 
 	err := runAdd(addCmd, []string{"Test", "task"})
 	if err != nil {
@@ -123,7 +129,7 @@ func TestIntegration_RemoveCommand(t *testing.T) {
 	}
 
 	// Remove item with --yes flag
-	removeCmd.Flags().Set("yes", "true")
+	setFlag(t, removeCmd, "yes", "true")
 	err := runRemove(removeCmd, []string{"remove"})
 	if err != nil {
 		t.Fatalf("runRemove() error = %v", err)
@@ -166,7 +172,7 @@ func TestIntegration_ListCommand(t *testing.T) {
 	}
 
 	// Test open filter
-	listCmd.Flags().Set("open", "true")
+	setFlag(t, listCmd, "open", "true")
 	err = runList(listCmd, []string{})
 	if err != nil {
 		t.Fatalf("runList() with --open error = %v", err)
@@ -219,13 +225,13 @@ func TestIntegration_ReportCommand(t *testing.T) {
 	}
 
 	// Test with different formats
-	reportCmd.Flags().Set("format", "json")
+	setFlag(t, reportCmd, "format", "json")
 	err = runReport(reportCmd, []string{})
 	if err != nil {
 		t.Fatalf("runReport() with json format error = %v", err)
 	}
 
-	reportCmd.Flags().Set("format", "markdown")
+	setFlag(t, reportCmd, "format", "markdown")
 	err = runReport(reportCmd, []string{})
 	if err != nil {
 		t.Fatalf("runReport() with markdown format error = %v", err)
@@ -237,7 +243,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	defer cleanup()
 
 	// 1. Add a task
-	addCmd.Flags().Set("yes", "true")
+	setFlag(t, addCmd, "yes", "true")
 	if err := runAdd(addCmd, []string{"Implement", "feature"}); err != nil {
 		t.Fatalf("adding task: %v", err)
 	}
@@ -259,7 +265,10 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 	// 5. Verify the task was completed
 	todoPath := filepath.Join(tmpDir, "TODO.md")
-	cfg, _ := config.Load(filepath.Join(tmpDir, ".mktodo.yml"))
+	cfg, err := config.Load(filepath.Join(tmpDir, ".mktodo.yml"))
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
 	doc, err := markdown.LoadDocument(todoPath, cfg)
 	if err != nil {
 		t.Fatalf("loading document: %v", err)

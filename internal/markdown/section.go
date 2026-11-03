@@ -105,9 +105,7 @@ func ParseSections(content string) ([]*Section, error) {
 			currentSection.Lines = append(currentSection.Lines, line)
 		} else {
 			// Previous section was TODO, start new other section
-			if currentSection != nil {
-				sections = append(sections, currentSection)
-			}
+			sections = append(sections, currentSection)
 			currentSection = &Section{
 				Type:      SectionOther,
 				Lines:     []string{line},

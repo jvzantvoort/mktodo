@@ -39,8 +39,14 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get flags
-	projectPath, _ := cmd.Flags().GetString("project")
-	skipConfirm, _ := cmd.Flags().GetBool("yes")
+	projectPath, err := cmd.Flags().GetString("project")
+	if err != nil {
+		return err
+	}
+	skipConfirm, err := cmd.Flags().GetBool("yes")
+	if err != nil {
+		return err
+	}
 
 	// Build query from args
 	query := strings.Join(args, " ")
@@ -91,7 +97,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Remove: %s\n", item.Description)
 		fmt.Print("Are you sure? [y/N] ")
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response) // empty input means "no"
 		if strings.ToLower(response) != "y" {
 			return fmt.Errorf("cancelled")
 		}

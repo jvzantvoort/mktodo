@@ -142,7 +142,8 @@ func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "y":
 			m.mode = modeNormal
 			if m.confirmAction != nil {
-				return m, func() tea.Msg { return m.confirmAction() }
+				m.confirmAction(&m)
+				m.confirmAction = nil
 			}
 			return m, nil
 
@@ -166,7 +167,10 @@ func (m Model) toggleItem() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	item := selected.(todoItem)
+	item, ok := selected.(todoItem)
+	if !ok {
+		return m, nil
+	}
 	item.item.Done = !item.item.Done
 	m.hasChanges = true
 
@@ -186,7 +190,10 @@ func (m Model) startEdit() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	item := selected.(todoItem)
+	item, ok := selected.(todoItem)
+	if !ok {
+		return m, nil
+	}
 	m.editInput = item.item.Description
 	m.mode = modeEdit
 
@@ -205,7 +212,11 @@ func (m Model) saveEdit() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	item := selected.(todoItem)
+	item, ok := selected.(todoItem)
+	if !ok {
+		m.mode = modeNormal
+		return m, nil
+	}
 	item.item.Description = m.editInput
 	m.hasChanges = true
 	m.mode = modeNormal
@@ -227,23 +238,27 @@ func (m Model) confirmDelete() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	item := selected.(todoItem)
-	m.confirmMsg = fmt.Sprintf("Delete '%s'?", item.item.Description)
-	m.confirmAction = func() tea.Msg {
-		return m.deleteItem()
+	item, ok := selected.(todoItem)
+	if !ok {
+		return m, nil
 	}
+	m.confirmMsg = fmt.Sprintf("Delete '%s'?", item.item.Description)
+	m.confirmAction = (*Model).deleteItem
 	m.mode = modeConfirm
 
 	return m, nil
 }
 
-func (m Model) deleteItem() tea.Msg {
+func (m *Model) deleteItem() {
 	if len(m.list.Items()) == 0 {
-		return nil
+		return
 	}
 
 	idx := m.list.Index()
-	item := m.list.Items()[idx].(todoItem)
+	item, ok := m.list.Items()[idx].(todoItem)
+	if !ok {
+		return
+	}
 
 	// Remove from document items
 	newItems := make([]*markdown.Item, 0)
@@ -270,8 +285,6 @@ func (m Model) deleteItem() tea.Msg {
 	// Remove from list
 	m.list.RemoveItem(idx)
 	m.hasChanges = true
-
-	return nil
 }
 
 func (m Model) startAdd() (tea.Model, tea.Cmd) {

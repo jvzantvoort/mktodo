@@ -17,7 +17,10 @@ func TestNewModel(t *testing.T) {
 		},
 	}
 
-	projects, _ := project.BuildHierarchy(cfg)
+	projects, err := project.BuildHierarchy(cfg)
+	if err != nil {
+		t.Fatalf("BuildHierarchy() error = %v", err)
+	}
 	item1 := &todo.Item{Description: "Test 1", Done: false}
 	item2 := &todo.Item{Description: "Test 2", Done: true}
 
@@ -28,7 +31,10 @@ func TestNewModel(t *testing.T) {
 		Items:    []*markdown.Item{item1, item2},
 	}
 
-	model := NewModel(cfg, doc, "TODO.md")
+	model, err := NewModel(cfg, doc, "TODO.md")
+	if err != nil {
+		t.Fatalf("NewModel() error = %v", err)
+	}
 
 	if model.config == nil {
 		t.Error("config should not be nil")
