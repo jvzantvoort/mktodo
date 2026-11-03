@@ -105,7 +105,11 @@ func TestFindRepositoryNestedPath(t *testing.T) {
 	}
 
 	// Verify it found the correct root
-	if repo.Root != tmpDir {
-		t.Errorf("FindRepositoryFrom() root = %s, want %s", repo.Root, tmpDir)
+	expectedRoot, err := filepath.EvalSymlinks(tmpDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%s) error = %v", tmpDir, err)
+	}
+	if repo.Root != expectedRoot {
+		t.Errorf("FindRepositoryFrom() root = %s, want %s", repo.Root, expectedRoot)
 	}
 }
