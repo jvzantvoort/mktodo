@@ -3,7 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
+	"sort"
 
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/messages"
@@ -17,37 +18,63 @@ var listCmd = &cobra.Command{
 	Short:   "List TODO items",
 	Long: `List TODO items with optional filtering.
 
+FIXME items are listed first; otherwise items appear in file order.
+
 Examples:
   mktodo list
   mktodo ls -o
+  mktodo ls --fixme
   mktodo ls -p lego --format json`,
 	Args: usageArgs(cobra.NoArgs),
 	RunE: runList,
 }
 
-func runList(cmd *cobra.Command, args []string) error {
-	// Get flags
-	projectPath, err := cmd.Flags().GetString("project")
-	if err != nil {
-		return err
-	}
-	showOpen, err := cmd.Flags().GetBool("open")
-	if err != nil {
-		return err
-	}
-	showDone, err := cmd.Flags().GetBool("done")
-	if err != nil {
-		return err
-	}
-	format, err := cmd.Flags().GetString("format")
-	if err != nil {
-		return err
-	}
+// listOptions selects and formats the items shown by list and open.
+type listOptions struct {
+	project string
+	open    bool
+	done    bool
+	fixme   bool
+	format  string
+}
 
-	if showOpen && showDone {
+func runList(cmd *cobra.Command, _ []string) error {
+	opts, err := readListFlags(cmd)
+	if err != nil {
+		return err
+	}
+	if opts.open, err = cmd.Flags().GetBool("open"); err != nil {
+		return err
+	}
+	if opts.done, err = cmd.Flags().GetBool("done"); err != nil {
+		return err
+	}
+	return listItems(cmd, opts)
+}
+
+// readListFlags reads the flags that list and open share.
+func readListFlags(cmd *cobra.Command) (listOptions, error) {
+	var opts listOptions
+	var err error
+	if opts.project, err = cmd.Flags().GetString("project"); err != nil {
+		return opts, err
+	}
+	if opts.fixme, err = cmd.Flags().GetBool("fixme"); err != nil {
+		return opts, err
+	}
+	if opts.format, err = cmd.Flags().GetString("format"); err != nil {
+		return opts, err
+	}
+	return opts, nil
+}
+
+// listItems prints the selected items. Flags are checked before any file
+// is read, so usage errors are reported first.
+func listItems(cmd *cobra.Command, opts listOptions) error {
+	if opts.open && opts.done {
 		return usageError(messages.Errorf("ERR_CONFLICTING_FLAGS", "open", "done"))
 	}
-	if err = validateFormat(format, "text", "json", "yaml"); err != nil {
+	if err := validateFormat(opts.format, "text", "json", "yaml"); err != nil {
 		return err
 	}
 
@@ -55,83 +82,88 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
 	doc, err := loadDocument(repo, cfg)
 	if err != nil {
 		return err
 	}
-	items, err := projectItems(doc, projectPath)
+	items, err := projectItems(doc, opts.project)
 	if err != nil {
 		return err
 	}
 
-	// Filter by status
-	if showOpen {
-		items = filterOpen(items)
-	} else if showDone {
-		items = filterDone(items)
-	}
+	items = sortFIXMEFirst(filterItems(items, opts))
 
-	// Output based on format
-	switch format {
+	out := cmd.OutOrStdout()
+	switch opts.format {
 	case "json":
-		return outputJSON(items)
+		return outputJSON(out, items)
 	case "yaml":
-		return outputYAML(items)
+		return outputYAML(out, items)
 	default:
-		return outputText(items)
+		return outputText(out, items, opts)
 	}
 }
 
-func filterOpen(items []*markdown.Item) []*markdown.Item {
+// filterItems keeps the items that match the status and FIXME filters.
+func filterItems(items []*markdown.Item, opts listOptions) []*markdown.Item {
 	var result []*markdown.Item
 	for _, item := range items {
-		if !item.Done {
-			result = append(result, item)
+		if (opts.open && item.Done) || (opts.done && !item.Done) || (opts.fixme && !item.IsFIXME) {
+			continue
 		}
+		result = append(result, item)
 	}
 	return result
 }
 
-func filterDone(items []*markdown.Item) []*markdown.Item {
-	var result []*markdown.Item
-	for _, item := range items {
-		if item.Done {
-			result = append(result, item)
-		}
-	}
-	return result
+// sortFIXMEFirst moves FIXME items to the front, keeping file order within
+// each group (spec FR-5: "FIXME first, then order in file").
+func sortFIXMEFirst(items []*markdown.Item) []*markdown.Item {
+	sorted := append([]*markdown.Item(nil), items...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].IsFIXME && !sorted[j].IsFIXME
+	})
+	return sorted
 }
 
-func outputText(items []*markdown.Item) error {
+func outputText(out io.Writer, items []*markdown.Item, opts listOptions) error {
 	if len(items) == 0 {
-		fmt.Println(messages.Prompt("MSG_NO_ITEMS"))
-		return nil
+		_, err := fmt.Fprintln(out, messages.Prompt(emptyListMessage(opts)))
+		return err
 	}
 
 	for _, item := range items {
-		// Status indicator
 		checkbox := "[ ]"
 		if item.Done {
 			checkbox = "[X]"
 		}
 
-		// FIXME indicator
 		fixmeTag := ""
 		if item.IsFIXME {
 			fixmeTag = " [FIXME]"
 		}
 
-		// Project info
 		projectInfo := ""
 		if item.Project != nil {
 			projectInfo = fmt.Sprintf(" (%s)", item.Project.FullPath())
 		}
 
-		fmt.Printf("%s %s%s%s\n", checkbox, item.Description, fixmeTag, projectInfo)
+		if _, err := fmt.Fprintf(out, "%s %s%s%s\n", checkbox, item.Description, fixmeTag, projectInfo); err != nil {
+			return err
+		}
 	}
-
 	return nil
+}
+
+func emptyListMessage(opts listOptions) string {
+	switch {
+	case opts.open:
+		return "MSG_NO_OPEN_ITEMS"
+	case opts.done:
+		return "MSG_NO_DONE_ITEMS"
+	default:
+		return "MSG_NO_ITEMS"
+	}
 }
 
 type itemOutput struct {
@@ -142,7 +174,7 @@ type itemOutput struct {
 	LineNumber  int    `json:"line_number,omitempty" yaml:"line_number,omitempty"`
 }
 
-func outputJSON(items []*markdown.Item) error {
+func toItemOutput(items []*markdown.Item) []itemOutput {
 	output := make([]itemOutput, len(items))
 	for i, item := range items {
 		output[i] = itemOutput{
@@ -155,33 +187,30 @@ func outputJSON(items []*markdown.Item) error {
 			output[i].Project = item.Project.FullPath()
 		}
 	}
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(output)
+	return output
 }
 
-func outputYAML(items []*markdown.Item) error {
-	output := make([]itemOutput, len(items))
-	for i, item := range items {
-		output[i] = itemOutput{
-			Description: item.Description,
-			Done:        item.Done,
-			IsFIXME:     item.IsFIXME,
-			LineNumber:  item.LineNumber,
-		}
-		if item.Project != nil {
-			output[i].Project = item.Project.FullPath()
-		}
-	}
+func outputJSON(out io.Writer, items []*markdown.Item) error {
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(toItemOutput(items))
+}
 
-	enc := yaml.NewEncoder(os.Stdout)
-	return enc.Encode(output)
+func outputYAML(out io.Writer, items []*markdown.Item) error {
+	enc := yaml.NewEncoder(out)
+	defer func() { _ = enc.Close() }()
+	return enc.Encode(toItemOutput(items))
+}
+
+// addListFlags registers the flags that list and open share.
+func addListFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("project", "p", "", "filter by project")
+	cmd.Flags().BoolP("fixme", "f", false, "show only FIXME items")
+	cmd.Flags().String("format", "text", "output format: text|json|yaml")
 }
 
 func init() {
-	listCmd.Flags().StringP("project", "p", "", "filter by project")
+	addListFlags(listCmd)
 	listCmd.Flags().BoolP("open", "o", false, "show only open items")
 	listCmd.Flags().BoolP("done", "d", false, "show only completed items")
-	listCmd.Flags().String("format", "text", "output format: text|json|yaml")
 }

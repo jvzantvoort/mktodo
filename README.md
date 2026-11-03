@@ -204,6 +204,31 @@ Remove ``topic 5`` from the ``## Technic`` section:
 mktodo rm -p lego.technic topic 5
 ```
 
+### List
+
+FIXME items are listed first, then the other items in file order.
+``open`` is the same as ``list --open``.
+
+```
+mktodo list                  # all items
+mktodo ls -o                 # open items only
+mktodo ls -d                 # completed items only
+mktodo ls --fixme            # FIXME items only
+mktodo ls -p lego --format json
+```
+
+### Report
+
+The report shows summary statistics, a completion bar per project and
+the list of FIXME items. Formats are ``text`` (default), ``markdown``,
+``html`` (a standalone page) and ``json``.
+
+```
+mktodo report
+mktodo report --format markdown -o report.md
+mktodo report --format html -o report.html
+```
+
 
 
 ## Interactive menu (charmbracelet)
