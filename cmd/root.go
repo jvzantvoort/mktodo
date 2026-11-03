@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +18,7 @@ func SetVersion(v, c, d string) {
 	version = v
 	commit = c
 	date = d
+	rootCmd.Version = fmt.Sprintf("%s (commit %s, built %s)", v, c, d)
 }
 
 var rootCmd = &cobra.Command{
@@ -24,7 +27,6 @@ var rootCmd = &cobra.Command{
 	Long: `mktodo is a CLI and TUI tool for managing TODO items within markdown files in git repositories.
 
 It supports hierarchical project organization, FIXME prioritization, and preserves all non-TODO content.`,
-	Version: version,
 }
 
 // Execute runs the root command
