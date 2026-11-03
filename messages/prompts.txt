@@ -28,43 +28,34 @@ MSG_NO_DONE_ITEMS=No completed TODO items yet.
 
 MSG_NO_ITEMS=No TODO items found.
 
-# Open Command  
-MSG_FIXME_ITEMS=🔴 FIXME Items:
-
-MSG_OPEN_ITEMS=Open Items:
-
-MSG_TOTAL_OPEN=Total: %d open items (%d FIXME)
-
-MSG_TOTAL_OPEN_NO_FIXME=Total: %d open items
-
-MSG_NO_OPEN=No open TODO items. Great job! 🎉
-
 # Report Command
-MSG_REPORT_HEADER=# TODO Report
+MSG_REPORT_TITLE=mktodo Report - %s
 
-MSG_REPORT_OVERALL=## Overall Summary
+MSG_REPORT_SUMMARY=Summary
 
-MSG_REPORT_TOTAL=- **Total Items:** %d
+MSG_REPORT_BY_PROJECT=By Project
 
-MSG_REPORT_OPEN=- **Open:** %d
+MSG_REPORT_FIXME_ITEMS=FIXME Items
 
-MSG_REPORT_DONE=- **Done:** %d
+MSG_REPORT_TOTAL=Total Tasks
 
-MSG_REPORT_FIXME=- **FIXME:** %d
+MSG_REPORT_OPEN=Open
 
-MSG_REPORT_COMPLETION=- **Completion:** %.1f%%
+MSG_REPORT_DONE=Completed
 
-MSG_PROJECT_STATS=## %s
+MSG_REPORT_FIXME=FIXME
 
-MSG_PROJECT_TOTAL=- Total: %d items
+MSG_REPORT_PROJECT=Project
 
-MSG_PROJECT_OPEN=- Open: %d
+MSG_REPORT_COMPLETION=Completion
 
-MSG_PROJECT_DONE=- Done: %d
+MSG_REPORT_NO_ITEMS=no items
 
-MSG_PROJECT_FIXME=- FIXME: %d
+MSG_REPORT_NO_PROJECT=(no project)
 
-MSG_PROJECT_COMPLETION=- Completion: %.1f%%
+MSG_REPORT_NO_FIXME=No FIXME items.
+
+MSG_REPORT_ITEM_DONE=(done)
 
 MSG_REPORT_WRITTEN=Report written to %s
 

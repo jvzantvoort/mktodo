@@ -58,7 +58,7 @@ func TestExecute_ExitCodes(t *testing.T) {
 		{"unexpected argument", nil, []string{"list", "extra"}, ExitUsage, `unknown command "extra"`, true},
 		{"conflicting flags", nil, []string{"list", "-o", "-d"}, ExitUsage, "--open and --done cannot be used together", true},
 		{"invalid list format", nil, []string{"list", "--format", "xml"}, ExitUsage, "Invalid format 'xml'", true},
-		{"invalid report format", nil, []string{"report", "--format", "html"}, ExitUsage, "Valid formats: text, markdown, json", true},
+		{"invalid report format", nil, []string{"report", "--format", "pdf"}, ExitUsage, "Valid formats: text, markdown, html, json", true},
 		{"unknown project", withTodo(todo), []string{"list", "-p", "nope"}, ExitUsage, "Available projects: default", true},
 		{"item not found", withTodo(todo), []string{"done", "paint"}, ExitUsage, "TODO item not found: 'paint'", true},
 		{"ambiguous item", withTodo(todo), []string{"done", "crane"}, ExitUsage, "Multiple TODO items match 'crane'", true},
