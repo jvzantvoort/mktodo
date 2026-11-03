@@ -284,3 +284,14 @@ func TestNewDocument_EnsureSectionsInOrder(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestAddItem_RejectsUnsafeDescription(t *testing.T) {
+	content := "# TODO\n\n- [ ] a\n"
+	doc := loadString(t, content, defaultConfig)
+	if _, err := doc.AddItem(doc.Projects["default"], "x\n# Injected"); err == nil {
+		t.Fatal("AddItem accepted a description with a newline")
+	}
+	if got := doc.String(); got != content {
+		t.Errorf("document changed: %q", got)
+	}
+}

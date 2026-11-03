@@ -2,9 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
+	"github.com/jvzantvoort/mktodo/internal/todo"
 )
 
 // Update handles a message and returns the updated model.
@@ -296,28 +298,35 @@ func (m Model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // commitEdit applies the text input: it adds a new item to the selected
-// project or changes the selected item. Empty input changes nothing.
+// project or changes the selected item. Empty input changes nothing. An
+// invalid description keeps the dialog open with the error shown, so the
+// text isn't lost.
 func (m *Model) commitEdit() {
-	defer m.finishEdit()
-
-	value := m.input.Value()
-	if value == "" {
+	if strings.TrimSpace(m.input.Value()) == "" {
+		m.finishEdit()
+		return
+	}
+	value, err := todo.CleanDescription(m.input.Value())
+	if err != nil {
+		m.err = err
 		return
 	}
 
-	if !m.adding {
-		if item, ok := m.selectedItem(); ok && item.Description != value {
-			item.SetDescription(value)
-			m.hasChanges = true
-		}
-		return
+	if m.adding {
+		m.addItem(value)
+	} else if item, ok := m.selectedItem(); ok && item.Description != value {
+		item.SetDescription(value)
+		m.hasChanges = true
 	}
+	m.finishEdit()
+}
 
+func (m *Model) addItem(description string) {
 	proj := m.selectedProject()
 	if proj == nil {
 		return
 	}
-	item, err := m.doc.AddItem(proj, value)
+	item, err := m.doc.AddItem(proj, description)
 	if err != nil {
 		m.err = err
 		return
@@ -328,6 +337,7 @@ func (m *Model) commitEdit() {
 }
 
 func (m *Model) finishEdit() {
+	m.err = nil
 	m.mode = modeNormal
 	m.adding = false
 	m.input.Blur()

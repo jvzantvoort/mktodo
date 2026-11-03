@@ -204,3 +204,33 @@ func TestTUI_ItemsOutsideProjectsAreShown(t *testing.T) {
 		t.Error("view doesn't show the (no project) row")
 	}
 }
+
+func TestTUI_PastedLineBreaksNeverReachTheFile(t *testing.T) {
+	m, path := newTestModel(t, "# TODO\n\n- [ ] one\n")
+	// A paste can deliver several lines at once.
+	paste := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("evil\n# Injected\n- [x] fake"), Paste: true}
+	m = press(m, "a")
+	m, _ = m.Update(paste)
+	m = press(m, "enter")
+	if model := asModel(t, m); model.mode == modeEdit {
+		m = press(m, "esc") // refused: the dialog stayed open with an error
+	}
+	press(m, "s")
+
+	for _, line := range strings.Split(readFile(t, path), "\n") {
+		if line == "# Injected" || strings.HasPrefix(line, "- [x] fake") {
+			t.Fatalf("pasted text added a line to the file: %q", readFile(t, path))
+		}
+	}
+}
+
+func TestTUI_ControlCharactersNeverReachTheFile(t *testing.T) {
+	m, path := newTestModel(t, "# TODO\n\n- [ ] one\n")
+	model := asModel(t, press(m, "e"))
+	model.input.SetValue("a\x07b\x1b[31m")
+	press(model, "enter", "s")
+
+	if got := readFile(t, path); strings.ContainsAny(got, "\x07\x1b") {
+		t.Errorf("control characters were written: %q", got)
+	}
+}

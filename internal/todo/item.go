@@ -2,9 +2,12 @@
 package todo
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jvzantvoort/mktodo/internal/project"
 )
@@ -34,6 +37,33 @@ var (
 	// Regex patterns for parsing TODO items
 	todoPattern = regexp.MustCompile(`^(\s*[-*+]\s*\[)([ xX])(\]\s*)(.*)$`)
 )
+
+// MaxDescriptionLength is the longest description accepted, in characters.
+const MaxDescriptionLength = 500
+
+// Errors returned by CleanDescription.
+var (
+	ErrEmptyDescription   = errors.New("description is empty")
+	ErrDescriptionTooLong = fmt.Errorf("description is longer than %d characters", MaxDescriptionLength)
+	ErrDescriptionControl = errors.New("description contains a line break or control character")
+)
+
+// CleanDescription trims surrounding whitespace from a description and
+// checks it. A description is a single markdown line, so line breaks and
+// other control characters are refused: they would add lines to the file,
+// such as a fake header or item.
+func CleanDescription(description string) (string, error) {
+	description = strings.TrimSpace(description)
+	switch {
+	case description == "":
+		return "", ErrEmptyDescription
+	case utf8.RuneCountInString(description) > MaxDescriptionLength:
+		return "", ErrDescriptionTooLong
+	case strings.IndexFunc(description, unicode.IsControl) >= 0:
+		return "", ErrDescriptionControl
+	}
+	return description, nil
+}
 
 // New creates a new open TODO item with the given description.
 func New(description string) *Item {

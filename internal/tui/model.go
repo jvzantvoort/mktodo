@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
+	"github.com/jvzantvoort/mktodo/internal/todo"
 )
 
 type mode int
@@ -75,7 +76,7 @@ type Model struct {
 func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) (Model, error) {
 	input := textinput.New()
 	input.Placeholder = "Description"
-	input.CharLimit = 500
+	input.CharLimit = todo.MaxDescriptionLength
 
 	return Model{
 		config:    cfg,

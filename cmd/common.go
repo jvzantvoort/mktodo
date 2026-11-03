@@ -12,6 +12,7 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/internal/todo"
 	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 )
@@ -48,9 +49,37 @@ func loadConfig(cmd *cobra.Command) (*git.Repository, *config.Config, error) {
 	return repo, cfg, nil
 }
 
+// todoPath returns the path of the TODO file, refusing a todofile that
+// leads outside the repository.
+func todoPath(repo *git.Repository, cfg *config.Config) (string, error) {
+	path, err := repo.SafePath(cfg.TodoFile)
+	if errors.Is(err, git.ErrOutsideRepo) {
+		return "", configError(messages.Errorf("ERR_TODOFILE_OUTSIDE_REPO", cfg.TodoFile))
+	}
+	if err != nil {
+		return "", fileError(messages.Errorf("ERR_FILE_READ_FAILED", cfg.TodoFile, err))
+	}
+	return path, nil
+}
+
+// checkDescription cleans a description from the command line.
+func checkDescription(description string) (string, error) {
+	description, err := todo.CleanDescription(description)
+	switch {
+	case errors.Is(err, todo.ErrEmptyDescription):
+		return "", usageError(messages.Errorf("ERR_NO_DESCRIPTION"))
+	case err != nil:
+		return "", usageError(messages.Errorf("ERR_INVALID_DESCRIPTION", err, todo.MaxDescriptionLength))
+	}
+	return description, nil
+}
+
 // loadDocument loads the TODO file named in the configuration.
 func loadDocument(repo *git.Repository, cfg *config.Config) (*markdown.Document, error) {
-	todoPath := repo.ResolvePath(cfg.TodoFile)
+	todoPath, err := todoPath(repo, cfg)
+	if err != nil {
+		return nil, err
+	}
 	doc, err := markdown.LoadDocument(todoPath, cfg)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
