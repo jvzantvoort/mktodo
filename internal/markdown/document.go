@@ -192,21 +192,82 @@ func (d *Document) EnsureSection(proj *project.Project) error {
 // AddItem adds a new TODO item at the end of the project's TODO list,
 // creating the project's header if the document doesn't have one.
 func (d *Document) AddItem(proj *project.Project, description string) (*todo.Item, error) {
-	if err := d.EnsureSection(proj); err != nil {
-		return nil, fmt.Errorf("creating section for project %s: %w", proj.Name, err)
-	}
-
 	item := todo.New(description)
+	if err := d.InsertItem(proj, nil, item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+// InsertItem puts an existing item into the project's TODO list: directly
+// after the item `after`, or at the end of the list when after is nil. The
+// item keeps its text and checkbox state, so this also pastes an item that
+// was cut with RemoveItem. The project's header is created if needed.
+func (d *Document) InsertItem(proj *project.Project, after, item *todo.Item) error {
+	// Check `after` first so a rejected call leaves the document unchanged.
+	if after != nil {
+		if section, _ := d.locate(after); section == nil || after.Project != proj {
+			return ErrItemNotFound
+		}
+	}
+	if err := d.EnsureSection(proj); err != nil {
+		return fmt.Errorf("creating section for project %s: %w", proj.Name, err)
+	}
 	item.Project = proj
+
+	if after != nil {
+		section, i := d.locate(after)
+		section.TODOItems = append(section.TODOItems[:i+1], append([]*todo.Item{item}, section.TODOItems[i+1:]...)...)
+		d.reindex()
+		return nil
+	}
 
 	target := d.lastTODOSection(proj)
 	if target == nil {
 		target = d.insertTODOSection(d.headerIndex(proj))
 	}
-
 	target.TODOItems = append(target.TODOItems, item)
-	d.Items = append(d.Items, item)
-	return item, nil
+	d.reindex()
+	return nil
+}
+
+// SwapItems exchanges the positions of two items in the same project. Each
+// item keeps its own line, so this is how an item is moved up or down.
+func (d *Document) SwapItems(a, b *todo.Item) error {
+	if a.Project != b.Project {
+		return fmt.Errorf("items belong to different projects")
+	}
+	sa, ia := d.locate(a)
+	sb, ib := d.locate(b)
+	if sa == nil || sb == nil {
+		return ErrItemNotFound
+	}
+	sa.TODOItems[ia], sb.TODOItems[ib] = b, a
+	d.reindex()
+	return nil
+}
+
+// locate returns the TODO section holding item and its index there.
+func (d *Document) locate(item *todo.Item) (*Section, int) {
+	for _, section := range d.Sections {
+		if section.Type != SectionTODO {
+			continue
+		}
+		for i, it := range section.TODOItems {
+			if it == item {
+				return section, i
+			}
+		}
+	}
+	return nil, -1
+}
+
+// reindex rebuilds Items in document order after items move.
+func (d *Document) reindex() {
+	d.Items = nil
+	for _, section := range d.Sections {
+		d.Items = append(d.Items, section.TODOItems...)
+	}
 }
 
 // RemoveItem removes a TODO item from the document

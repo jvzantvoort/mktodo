@@ -17,20 +17,23 @@ var tuiCmd = &cobra.Command{
 	Short: "Launch interactive terminal UI",
 	Long: `Launch the interactive terminal UI for managing TODO items.
 
-The TUI provides:
-  - Project tree navigation
-  - TODO item editing
-  - Keyboard shortcuts for all operations
-  - Real-time markdown file updates
+The left pane shows the project tree, the right pane the items of the
+selected project. Changes are kept in memory until you save.
 
-Keyboard shortcuts:
-  space    - Toggle TODO done/undone
-  e        - Edit selected item
-  a        - Add new item
-  d        - Delete selected item
-  s        - Save changes
-  esc      - Open menu
-  q        - Quit
+Keys:
+  ↑/↓ k/j      move up/down
+  ←/→ h/l tab  switch between projects and items
+  enter        expand/collapse project, or edit item
+  space        toggle done
+  e / d / a    edit / delete / add
+  - / +        move item up / down
+  x / p        cut / paste item
+  s            save
+  esc          menu (save, save and quit, quit)
+  ?            help
+  q            quit (asks if there are unsaved changes)
+
+Colours are turned off when NO_COLOR is set or TERM=dumb.
 
 Examples:
   mktodo tui`,
@@ -65,6 +68,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return configError(messages.Errorf("ERR_CONFIG_INVALID", err))
 	}
+	model = model.WithVersion(version)
 
 	// Run TUI
 	p := tea.NewProgram(model, tea.WithAltScreen())
