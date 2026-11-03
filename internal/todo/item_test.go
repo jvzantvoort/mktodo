@@ -1,6 +1,8 @@
 package todo
 
 import (
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -258,6 +260,34 @@ func TestItem_Matches(t *testing.T) {
 			got := item.Matches(tt.query)
 			if got != tt.want {
 				t.Errorf("Matches(%q) = %v, want %v", tt.query, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCleanDescription(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr error
+	}{
+		{"trims spaces", "  task  ", "task", nil},
+		{"unicode is fine", "über café ✓", "über café ✓", nil},
+		{"exactly the limit", strings.Repeat("é", MaxDescriptionLength), strings.Repeat("é", MaxDescriptionLength), nil},
+		{"empty", "", "", ErrEmptyDescription},
+		{"only spaces", "   ", "", ErrEmptyDescription},
+		{"too long", strings.Repeat("a", MaxDescriptionLength+1), "", ErrDescriptionTooLong},
+		{"newline", "evil\n# Heading", "", ErrDescriptionControl},
+		{"carriage return", "a\rb", "", ErrDescriptionControl},
+		{"tab", "a\tb", "", ErrDescriptionControl},
+		{"escape sequence", "a\x1b[31mred", "", ErrDescriptionControl},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CleanDescription(tt.in)
+			if !errors.Is(err, tt.wantErr) || got != tt.want {
+				t.Errorf("CleanDescription(%q) = %q, %v; want %q, %v", tt.in, got, err, tt.want, tt.wantErr)
 			}
 		})
 	}

@@ -48,7 +48,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get todo file path
-	todoPath := repo.ResolvePath(cfg.TodoFile)
+	todoPath, err := todoPath(repo, cfg)
+	if err != nil {
+		return err
+	}
 
 	// Load the document, or start an empty one if the file doesn't exist yet.
 	// Any other error is reported rather than risking a save over the file.

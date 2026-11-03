@@ -12,6 +12,9 @@ ERR_CONFIG_LOAD_FAILED=Error: Failed to load configuration: %s
 
 ERR_CONFIG_INVALID=Error: Invalid configuration: %s
 
+ERR_TODOFILE_OUTSIDE_REPO=Error: todofile '%s' is outside the git repository.
+Use a path relative to the repository root that stays inside it.
+
 ERR_PROJECT_NOT_FOUND=Error: Project '%s' not found.
 Available projects: %s
 
@@ -36,6 +39,9 @@ ERR_ITEM_AMBIGUOUS=Error: Multiple TODO items match '%s':
 Please be more specific.
 
 ERR_NO_DESCRIPTION=Error: Description is required.
+
+ERR_INVALID_DESCRIPTION=Error: Invalid description: %s.
+A description must be a single line of at most %d characters.
 
 ERR_INVALID_ITEM=Error: Invalid TODO item: %s
 

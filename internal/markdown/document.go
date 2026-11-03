@@ -191,7 +191,13 @@ func (d *Document) EnsureSection(proj *project.Project) error {
 
 // AddItem adds a new TODO item at the end of the project's TODO list,
 // creating the project's header if the document doesn't have one.
+//
+// The description is checked with todo.CleanDescription first.
 func (d *Document) AddItem(proj *project.Project, description string) (*todo.Item, error) {
+	description, err := todo.CleanDescription(description)
+	if err != nil {
+		return nil, err
+	}
 	item := todo.New(description)
 	if err := d.InsertItem(proj, nil, item); err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package git
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 var (
 	// ErrNotInGitRepo is returned when not in a git repository
 	ErrNotInGitRepo = errors.New("not in a git repository")
+
+	// ErrOutsideRepo is returned by SafePath for a path that leads outside
+	// the repository.
+	ErrOutsideRepo = errors.New("path is outside the git repository")
 )
 
 // Repository represents a git repository
@@ -59,7 +64,67 @@ func (r *Repository) ConfigPath() string {
 	return filepath.Join(r.Root, ".mktodo.yml")
 }
 
-// ResolvePath resolves a relative path from the repository root
-func (r *Repository) ResolvePath(relPath string) string {
-	return filepath.Join(r.Root, relPath)
+// SafePath resolves a path relative to the repository root and checks that
+// it stays inside the repository, also after following symlinks. It
+// returns the joined path; ErrOutsideRepo means the path is absolute, uses
+// ".." to leave the repository, or goes through a symlink that points out
+// of it. The file itself doesn't need to exist.
+func (r *Repository) SafePath(relPath string) (string, error) {
+	if filepath.IsAbs(relPath) || filepath.VolumeName(relPath) != "" {
+		return "", ErrOutsideRepo
+	}
+
+	root := filepath.Clean(r.Root)
+	target := filepath.Join(root, relPath)
+	if !within(root, target) {
+		return "", ErrOutsideRepo
+	}
+
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	realTarget, err := evalExisting(target)
+	if err != nil {
+		return "", err
+	}
+	if !within(realRoot, realTarget) {
+		return "", ErrOutsideRepo
+	}
+	return target, nil
+}
+
+// within reports whether path is base or inside it.
+func within(base, path string) bool {
+	rel, err := filepath.Rel(base, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// evalExisting follows symlinks in the longest existing prefix of path and
+// appends the part that doesn't exist yet.
+func evalExisting(path string) (string, error) {
+	var missing []string
+	current := path
+	for {
+		if _, err := os.Lstat(current); err == nil {
+			resolved, err := filepath.EvalSymlinks(current)
+			if errors.Is(err, fs.ErrNotExist) {
+				// A dangling symlink can't be checked, so it isn't trusted.
+				return "", ErrOutsideRepo
+			}
+			if err != nil {
+				return "", err
+			}
+			for i := len(missing) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, missing[i])
+			}
+			return resolved, nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return path, nil
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
 }

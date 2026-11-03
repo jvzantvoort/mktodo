@@ -212,7 +212,11 @@ func (m Model) viewEdit() string {
 			title += " to " + p.Title
 		}
 	}
-	return titleStyle.Render(title) + "\n\n" + m.input.View() + "\n\n" + mutedStyle.Render("enter save · esc cancel")
+	body := titleStyle.Render(title) + "\n\n" + m.input.View() + "\n\n"
+	if m.err != nil {
+		body += errorStyle.Render("Error: "+m.err.Error()) + "\n\n"
+	}
+	return body + mutedStyle.Render("enter save · esc cancel")
 }
 
 func viewHelp() string {

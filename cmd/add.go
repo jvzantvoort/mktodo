@@ -43,10 +43,16 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	description := strings.Join(args, " ")
-	todoPath := repo.ResolvePath(cfg.TodoFile)
+	description, err := checkDescription(strings.Join(args, " "))
+	if err != nil {
+		return err
+	}
+	path, err := todoPath(repo, cfg)
+	if err != nil {
+		return err
+	}
 
-	doc, err := loadOrCreateDocument(todoPath, cfg, skipConfirm)
+	doc, err := loadOrCreateDocument(path, cfg, skipConfirm)
 	if err != nil {
 		return err
 	}
