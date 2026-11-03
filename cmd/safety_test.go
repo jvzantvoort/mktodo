@@ -74,3 +74,29 @@ func TestTodoFile_SymlinkOutsideRepoRefused(t *testing.T) {
 		t.Errorf("file outside the repository was changed: %q", got)
 	}
 }
+
+func TestSaveDocument_ReportsExternalChange(t *testing.T) {
+	dir, cleanup := setupTestRepo(t)
+	defer cleanup()
+	todoPath := filepath.Join(dir, "TODO.md")
+	writeFile(t, todoPath, "# TODO\n\n- [ ] a\n")
+
+	repo, cfg, err := loadConfig(listCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := loadDocument(repo, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, todoPath, "# TODO\n\n- [ ] a\n- [ ] b\n")
+	doc.Items[0].MarkDone()
+
+	err = saveDocument(doc)
+	if exitCode(err) != ExitFile || !strings.Contains(formatError(err), "was changed by another program") {
+		t.Errorf("saveDocument() = %v (exit %d), want a file error about the change", err, exitCode(err))
+	}
+	if got := readFile(t, todoPath); got != "# TODO\n\n- [ ] a\n- [ ] b\n" {
+		t.Errorf("file was overwritten: %q", got)
+	}
+}

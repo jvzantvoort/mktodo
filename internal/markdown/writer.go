@@ -91,9 +91,3 @@ func resolveTarget(path string) (string, error) {
 	}
 	return resolved, nil
 }
-
-// SaveDocument is a convenience function to save a document atomically
-func SaveDocument(path string, doc *Document) error {
-	writer := NewWriter(path)
-	return writer.Write(doc)
-}
