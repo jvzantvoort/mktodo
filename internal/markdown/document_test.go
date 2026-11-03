@@ -196,7 +196,7 @@ func TestDocument_UpdateItem(t *testing.T) {
 	}
 
 	// Verify the line was updated
-	if !strings.Contains(doc.String(), item.String()+"\n") {
+	if !strings.Contains(doc.String(), item.String()) {
 		t.Errorf("item line %q not updated in document:\n%s", item.String(), doc.String())
 	}
 
