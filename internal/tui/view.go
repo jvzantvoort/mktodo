@@ -45,6 +45,8 @@ func (m Model) View() string {
 		return m.overlay(m.confirmMsg + "\n\n" + mutedStyle.Render("y yes · n no"))
 	case modeHelp:
 		return m.overlay(viewHelp())
+	case modeConflict:
+		return m.overlay(m.viewConflict())
 	default:
 		return m.viewMain()
 	}
@@ -217,6 +219,14 @@ func (m Model) viewEdit() string {
 		body += errorStyle.Render("Error: "+m.err.Error()) + "\n\n"
 	}
 	return body + mutedStyle.Render("enter save · esc cancel")
+}
+
+func (m Model) viewConflict() string {
+	return titleStyle.Render("File changed on disk") + "\n\n" +
+		m.todoPath + "\nwas changed outside mktodo since it was opened.\n\n" +
+		"r    reload it (your unsaved changes are lost)\n" +
+		"o    overwrite it with your version\n" +
+		"esc  cancel, don't save"
 }
 
 func viewHelp() string {

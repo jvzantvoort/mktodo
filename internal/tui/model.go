@@ -21,6 +21,7 @@ const (
 	modeConfirm
 	modeMenu
 	modeHelp
+	modeConflict
 )
 
 type pane int
@@ -62,6 +63,10 @@ type Model struct {
 
 	// clipboard holds an item that was cut and not yet pasted.
 	clipboard *markdown.Item
+
+	// quitAfterSave remembers a save-and-quit while the conflict dialog is
+	// open, so overwriting also quits.
+	quitAfterSave bool
 
 	hasChanges bool
 	status     string // feedback for the last action

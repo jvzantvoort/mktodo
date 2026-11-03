@@ -234,3 +234,65 @@ func TestTUI_ControlCharactersNeverReachTheFile(t *testing.T) {
 		t.Errorf("control characters were written: %q", got)
 	}
 }
+
+func TestTUI_ExternalChange(t *testing.T) {
+	const external = "# TODO\n\n- [ ] one\n- [ ] added elsewhere\n"
+	tests := []struct {
+		name     string
+		keys     []string // after the conflict dialog opens
+		want     string   // file content afterwards
+		wantQuit bool
+	}{
+		{"overwrite", []string{"o"}, "# TODO\n\n- [X] one\n", false},
+		{"reload", []string{"r"}, external, false},
+		{"cancel", []string{"esc"}, external, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, path := newTestModel(t, "# TODO\n\n- [ ] one\n")
+			m = press(m, "space")
+			if err := os.WriteFile(path, []byte(external), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			model := asModel(t, press(m, "s"))
+			if model.mode != modeConflict || !strings.Contains(model.View(), "changed outside mktodo") {
+				t.Fatal("saving over an outside change should open the conflict dialog")
+			}
+			model = asModel(t, press(model, tt.keys...))
+
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("file = %q, want %q", got, tt.want)
+			}
+			if tt.name == "reload" {
+				if model.hasChanges || len(model.items()) != 2 {
+					t.Errorf("after reload: hasChanges %v, %d items; want the file's 2 items", model.hasChanges, len(model.items()))
+				}
+			}
+			if tt.name == "cancel" && !model.hasChanges {
+				t.Error("cancel should keep the unsaved changes")
+			}
+		})
+	}
+}
+
+func TestTUI_SaveAndQuitWithExternalChange(t *testing.T) {
+	m, path := newTestModel(t, "# TODO\n\n- [ ] one\n")
+	m = press(m, "space")
+	if err := os.WriteFile(path, []byte("changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	model := asModel(t, press(m, "esc"))
+	next, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if asModel(t, next).mode != modeConflict || cmd != nil {
+		t.Fatal("save-and-quit over an outside change should ask, not quit")
+	}
+	next, cmd = next.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	if !asModel(t, next).quitting || cmd == nil {
+		t.Error("overwriting after save-and-quit should quit")
+	}
+	if got := readFile(t, path); got != "# TODO\n\n- [X] one\n" {
+		t.Errorf("file = %q", got)
+	}
+}

@@ -30,6 +30,10 @@ type Document struct {
 
 	eol        string // line ending of the source file
 	noFinalEOL bool   // source file did not end with a line ending
+
+	// source is what the file looked like when the document was loaded
+	// (or last saved), so a save can tell whether someone else changed it.
+	source *sourceState
 }
 
 // NewDocument creates an empty document for a file that does not exist yet.
@@ -38,6 +42,7 @@ func NewDocument(path string, projects map[string]*project.Project) *Document {
 		Path:     path,
 		Projects: projects,
 		eol:      "\n",
+		source:   &sourceState{},
 	}
 }
 
@@ -72,6 +77,7 @@ func LoadDocument(path string, cfg *config.Config) (*Document, error) {
 		Items:      items,
 		eol:        eol,
 		noFinalEOL: !trailingEOL,
+		source:     newSourceState(content),
 	}, nil
 }
 

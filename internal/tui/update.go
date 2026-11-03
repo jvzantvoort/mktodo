@@ -1,11 +1,14 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
+	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/jvzantvoort/mktodo/internal/todo"
 )
 
@@ -23,6 +26,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateEdit(msg)
 	case modeConfirm:
 		return m.updateConfirm(msg)
+	case modeConflict:
+		return m.updateConflict(msg)
 	case modeHelp:
 		if _, ok := msg.(tea.KeyMsg); ok {
 			m.mode = modeNormal
@@ -49,7 +54,7 @@ var normalKeys = map[string]func(*Model) tea.Cmd{
 	"+":      (*Model).moveItemDown,
 	"x":      (*Model).cutItem,
 	"p":      (*Model).pasteItem,
-	"s":      func(m *Model) tea.Cmd { m.save(); return nil },
+	"s":      func(m *Model) tea.Cmd { return m.save(false) },
 	"?":      func(m *Model) tea.Cmd { m.mode = modeHelp; return nil },
 	"esc":    func(m *Model) tea.Cmd { m.mode = modeMenu; return nil },
 	"q":      (*Model).quit,
@@ -264,15 +269,12 @@ func (m Model) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.mode = modeNormal
 	switch keyMsg.String() {
 	case "s":
-		m.save()
+		return m, m.save(false)
 	case "q":
 		return m, m.quit()
 	case "x":
 		// Only quit once the changes are safely written.
-		if m.save() {
-			m.quitting = true
-			return m, tea.Quit
-		}
+		return m, m.save(true)
 	case "esc":
 	default:
 		m.mode = modeMenu // ignore other keys while the menu is open
@@ -365,15 +367,75 @@ func (m Model) updateConfirm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// save writes the document atomically and reports whether it succeeded.
-// A failure is shown in the status line and the changes are kept.
-func (m *Model) save() bool {
-	if err := markdown.SaveDocument(m.todoPath, m.doc); err != nil {
+// save writes the document atomically. If the file was changed outside
+// the TUI since it was loaded, it opens the conflict dialog instead of
+// overwriting those changes. With quitAfter, the TUI quits once the
+// changes are written. A failure is shown in the status line and the
+// changes are kept.
+func (m *Model) save(quitAfter bool) tea.Cmd {
+	err := markdown.SaveDocument(m.todoPath, m.doc)
+	if errors.Is(err, markdown.ErrModifiedExternally) {
+		m.mode = modeConflict
+		m.quitAfterSave = quitAfter
+		return nil
+	}
+	return m.afterSave(err, quitAfter)
+}
+
+func (m *Model) afterSave(err error, quitAfter bool) tea.Cmd {
+	if err != nil {
 		m.err = fmt.Errorf("saving %s: %w", m.todoPath, err)
-		return false
+		return nil
 	}
 	m.err = nil
 	m.hasChanges = false
 	m.status = "Saved " + m.todoPath
-	return true
+	if quitAfter {
+		m.quitting = true
+		return tea.Quit
+	}
+	return nil
+}
+
+// updateConflict handles the dialog shown when the file changed on disk:
+// reload it (dropping the unsaved changes), overwrite it, or cancel.
+func (m Model) updateConflict(msg tea.Msg) (tea.Model, tea.Cmd) {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+
+	quitAfter := m.quitAfterSave
+	switch keyMsg.String() {
+	case "o":
+		m.mode, m.quitAfterSave = modeNormal, false
+		return m, m.afterSave(markdown.OverwriteDocument(m.todoPath, m.doc), quitAfter)
+	case "r":
+		m.mode, m.quitAfterSave = modeNormal, false
+		m.reload()
+	case "esc", "n":
+		m.mode, m.quitAfterSave = modeNormal, false
+		m.status = "Not saved: the file changed on disk."
+	}
+	return m, nil
+}
+
+// reload replaces the document with the file on disk.
+func (m *Model) reload() {
+	doc, err := markdown.LoadDocument(m.todoPath, m.config)
+	if errors.Is(err, fs.ErrNotExist) {
+		var projects map[string]*project.Project
+		if projects, err = project.BuildHierarchy(m.config); err == nil {
+			doc = markdown.NewDocument(m.todoPath, projects)
+		}
+	}
+	if err != nil {
+		m.err = fmt.Errorf("reloading %s: %w", m.todoPath, err)
+		return
+	}
+	m.doc = doc
+	m.clipboard = nil
+	m.hasChanges = false
+	m.clamp()
+	m.status = "Reloaded " + m.todoPath
 }

@@ -28,6 +28,12 @@ ERR_FILE_WRITE_FAILED=Error: Failed to write file '%s': %s
 
 ERR_FILE_CREATE_FAILED=Error: Failed to create file '%s': %s
 
+ERR_FILE_CHANGED=Error: %s was changed by another program while mktodo was running.
+Nothing was written. Run the command again.
+
+ERR_FILE_LOCKED=Error: %s is being saved by another mktodo process.
+Try again in a moment.
+
 # TODO Item Errors
 ERR_NO_ITEMS_FOUND=No TODO items found.
 

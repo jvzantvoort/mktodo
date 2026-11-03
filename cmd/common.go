@@ -90,9 +90,16 @@ func loadDocument(repo *git.Repository, cfg *config.Config) (*markdown.Document,
 	return doc, nil
 }
 
-// saveDocument writes the document back to its file.
+// saveDocument writes the document back to its file. It refuses to
+// overwrite changes another program made since the document was loaded.
 func saveDocument(doc *markdown.Document) error {
-	if err := markdown.SaveDocument(doc.Path, doc); err != nil {
+	err := markdown.SaveDocument(doc.Path, doc)
+	switch {
+	case errors.Is(err, markdown.ErrModifiedExternally):
+		return fileError(messages.Errorf("ERR_FILE_CHANGED", doc.Path))
+	case errors.Is(err, markdown.ErrLocked):
+		return fileError(messages.Errorf("ERR_FILE_LOCKED", doc.Path))
+	case err != nil:
 		return fileError(messages.Errorf("ERR_FILE_WRITE_FAILED", doc.Path, err))
 	}
 	return nil
