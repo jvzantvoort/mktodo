@@ -5,175 +5,261 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/jvzantvoort/mktodo/internal/markdown"
 )
 
+// Colours adapt to light and dark terminals. Every state is also shown
+// without colour (cursor marker, [✓], "!" for FIXME, [UNSAVED]), so the UI
+// works with NO_COLOR or TERM=dumb.
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("205")).
-			MarginLeft(2)
+	accent = lipgloss.AdaptiveColor{Light: "#8839ef", Dark: "#cba6f7"}
+	muted  = lipgloss.AdaptiveColor{Light: "#6c6f85", Dark: "#9399b2"}
+	danger = lipgloss.AdaptiveColor{Light: "#d20f39", Dark: "#f38ba8"}
 
-	paginationStyle = lipgloss.NewStyle().
-			PaddingLeft(4)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	statusBarStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("62")).
-			Foreground(lipgloss.Color("230")).
-			Padding(0, 1)
-
-	menuStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 2).
-			Margin(1, 2)
-
-	editStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("205")).
-			Padding(1, 2).
-			Width(60)
-
-	confirmStyle = lipgloss.NewStyle().
-			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color("196")).
-			Padding(1, 2).
-			Margin(1, 2)
+	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(accent)
+	mutedStyle    = lipgloss.NewStyle().Foreground(muted)
+	titleStyle    = lipgloss.NewStyle().Bold(true)
+	focusStyle    = lipgloss.NewStyle().Bold(true).Foreground(accent)
+	selectedStyle = lipgloss.NewStyle().Bold(true).Reverse(true)
+	doneStyle     = lipgloss.NewStyle().Faint(true).Strikethrough(true)
+	fixmeStyle    = lipgloss.NewStyle().Bold(true).Foreground(danger)
+	errorStyle    = lipgloss.NewStyle().Foreground(danger)
+	boxStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(accent).Padding(1, 2)
 )
+
+const keyHints = "space toggle  e edit  d delete  a add  -/+ move  x cut  p paste  ? all keys"
 
 // View implements tea.Model.
 func (m Model) View() string {
 	if m.quitting {
-		return "Goodbye!\n"
+		return ""
 	}
-
-	var content string
 
 	switch m.mode {
 	case modeMenu:
-		content = m.viewMenu()
+		return m.overlay(m.viewMenu())
 	case modeEdit:
-		content = m.viewEdit()
+		return m.overlay(m.viewEdit())
 	case modeConfirm:
-		content = m.viewConfirm()
+		return m.overlay(m.confirmMsg + "\n\n" + mutedStyle.Render("y yes · n no"))
+	case modeHelp:
+		return m.overlay(viewHelp())
 	default:
-		content = m.viewNormal()
+		return m.viewMain()
 	}
-
-	return content
 }
 
-func (m Model) viewNormal() string {
+func (m Model) viewMain() string {
+	width, height := max(m.width, 40), max(m.height, 10)
+	bodyHeight := height - 5 // header, two rules, hints, status
+	leftWidth := min(max(width/3, 18), 36)
+	rightWidth := width - leftWidth - 3
+
+	left := m.projectLines(leftWidth, bodyHeight)
+	right := m.itemLines(rightWidth, bodyHeight)
+
 	var b strings.Builder
-
-	// Main list
-	b.WriteString(m.list.View())
-	b.WriteString("\n")
-
-	// Status bar
-	status := m.buildStatusBar()
-	b.WriteString(statusBarStyle.Render(status))
-	b.WriteString("\n")
-
-	// Help text
-	help := "space:toggle • e:edit • a:add • d:delete • s:save • esc:menu • q:quit"
-	b.WriteString(helpStyle.Render(help))
-
-	// Error message if any
-	if m.err != nil {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Render(fmt.Sprintf("Error: %v", m.err)))
+	b.WriteString(m.header(width) + "\n")
+	b.WriteString(mutedStyle.Render(strings.Repeat("─", width)) + "\n")
+	for i := 0; i < bodyHeight; i++ {
+		b.WriteString(left[i] + mutedStyle.Render(" │ ") + right[i] + "\n")
 	}
-
+	b.WriteString(mutedStyle.Render(strings.Repeat("─", width)) + "\n")
+	b.WriteString(mutedStyle.Render(fit(keyHints, width)) + "\n")
+	b.WriteString(m.statusLine(width))
 	return b.String()
 }
 
-func (m Model) viewMenu() string {
-	var b strings.Builder
-
-	b.WriteString(menuStyle.Render(
-		titleStyle.Render("Menu") + "\n\n" +
-			strings.Join(m.menuItems, "\n"),
-	))
-
-	return lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		b.String(),
-	)
+func (m Model) header(width int) string {
+	left := headerStyle.Render("mktodo " + m.version)
+	right := mutedStyle.Render("? help · esc menu")
+	gap := max(width-ansi.StringWidth(left)-ansi.StringWidth(right), 1)
+	return left + strings.Repeat(" ", gap) + right
 }
 
-func (m Model) viewEdit() string {
-	var b strings.Builder
-
-	title := "Edit TODO:"
-	if m.adding {
-		title = "Add TODO:"
+// paneTitle marks the focused pane with "»" as well as colour.
+func paneTitle(title string, focused bool, width int) string {
+	if focused {
+		return focusStyle.Render(fit("» "+title, width))
 	}
-	b.WriteString(title + "\n\n")
-	b.WriteString(m.input.View() + "\n\n")
-	b.WriteString(helpStyle.Render("enter:save • esc:cancel"))
-
-	content := editStyle.Render(b.String())
-
-	return lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		content,
-	)
+	return titleStyle.Render(fit("  "+title, width))
 }
 
-func (m Model) viewConfirm() string {
-	var b strings.Builder
+func (m Model) projectLines(width, height int) []string {
+	rows := m.rows()
+	focused := m.focus == paneProjects
+	lines := []string{paneTitle("Projects", focused, width)}
 
-	b.WriteString(m.confirmMsg + "\n\n")
-	b.WriteString(helpStyle.Render("y:yes • n:no • esc:cancel"))
-
-	content := confirmStyle.Render(b.String())
-
-	return lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		content,
-	)
-}
-
-func (m Model) buildStatusBar() string {
-	total := len(m.list.Items())
-	done := 0
-	fixme := 0
-
-	for _, item := range m.list.Items() {
-		ti, ok := item.(todoItem)
-		if !ok {
-			continue
+	start := scrollStart(m.projectCursor, len(rows), height-1)
+	for i := start; i < len(rows) && len(lines) < height; i++ {
+		row := rows[i]
+		icon, name := "•", "(no project)"
+		if row.project != nil {
+			name = row.project.Title
+			if row.hasChildren {
+				icon = "▾"
+				if m.collapsed[row.project.Name] {
+					icon = "▸"
+				}
+			}
 		}
-		if ti.item.Done {
+		text := fmt.Sprintf("%s%s %s (%d)", strings.Repeat("  ", row.depth), icon, name, row.count)
+		lines = append(lines, renderRow(text, i == m.projectCursor, focused, lipgloss.NewStyle(), width))
+	}
+	return padLines(lines, width, height)
+}
+
+func (m Model) itemLines(width, height int) []string {
+	title := "(no project)"
+	if p := m.selectedProject(); p != nil {
+		title = p.Title
+	}
+	focused := m.focus == paneItems
+	lines := []string{paneTitle(title, focused, width)}
+
+	items := m.items()
+	if len(items) == 0 {
+		lines = append(lines, mutedStyle.Render(fit("  No items. Press a to add one.", width)))
+	}
+	start := scrollStart(m.itemCursor, len(items), height-1)
+	for i := start; i < len(items) && len(lines) < height; i++ {
+		lines = append(lines, renderRow(itemText(items[i]), i == m.itemCursor, focused, itemStyle(items[i]), width))
+	}
+	return padLines(lines, width, height)
+}
+
+func itemText(item *markdown.Item) string {
+	box := "[ ]"
+	if item.Done {
+		box = "[✓]"
+	}
+	flag := " "
+	if item.IsFIXME {
+		flag = "!"
+	}
+	return fmt.Sprintf("%s %s %s", box, flag, item.Description)
+}
+
+func itemStyle(item *markdown.Item) lipgloss.Style {
+	switch {
+	case item.Done:
+		return doneStyle
+	case item.IsFIXME:
+		return fixmeStyle
+	default:
+		return lipgloss.NewStyle()
+	}
+}
+
+// renderRow draws one list row. The selected row has a "›" marker; in the
+// focused pane it's also shown in reverse video.
+func renderRow(text string, selected, focused bool, style lipgloss.Style, width int) string {
+	marker := "  "
+	if selected {
+		marker = "› "
+	}
+	line := fit(marker+text, width)
+	if selected && focused {
+		return selectedStyle.Render(line)
+	}
+	return style.Render(line)
+}
+
+func (m Model) statusLine(width int) string {
+	var done, fixme int
+	for _, item := range m.doc.Items {
+		if item.Done {
 			done++
 		}
-		if ti.item.IsFIXME {
+		if item.IsFIXME {
 			fixme++
 		}
 	}
-
-	status := fmt.Sprintf("Total: %d | Done: %d | Open: %d", total, done, total-done)
-	if fixme > 0 {
-		status += fmt.Sprintf(" | FIXME: %d", fixme)
-	}
-
+	total := len(m.doc.Items)
+	parts := []string{fmt.Sprintf("Total %d · Done %d · Open %d · FIXME %d", total, done, total-done, fixme)}
 	if m.hasChanges {
-		status += " | [UNSAVED]"
+		parts = append(parts, "[UNSAVED]")
 	}
+	if m.clipboard != nil {
+		parts = append(parts, "Clipboard: "+m.clipboard.Description)
+	}
+	line := fit(strings.Join(parts, " · "), width)
 
-	return status
+	switch {
+	case m.err != nil:
+		return errorStyle.Render(fit("Error: "+m.err.Error(), width))
+	case m.status != "":
+		return fit(m.status, width)
+	default:
+		return mutedStyle.Render(line)
+	}
+}
+
+func (m Model) viewMenu() string {
+	return titleStyle.Render("Menu") + "\n\n" +
+		"s    Save changes\n" +
+		"x    Save and quit\n" +
+		"q    Quit\n" +
+		"esc  Close menu"
+}
+
+func (m Model) viewEdit() string {
+	title := "Edit item"
+	if m.adding {
+		title = "Add item"
+		if p := m.selectedProject(); p != nil {
+			title += " to " + p.Title
+		}
+	}
+	return titleStyle.Render(title) + "\n\n" + m.input.View() + "\n\n" + mutedStyle.Render("enter save · esc cancel")
+}
+
+func viewHelp() string {
+	return titleStyle.Render("Keys") + `
+
+↑/↓ k/j  move              space  toggle done
+←/→ h/l  projects / items  e      edit
+tab      switch pane       d      delete
+enter    expand / edit     a      add to project
+s        save              - +    move item
+esc      menu              x p    cut / paste
+q        quit              ?      this help
+
+` + mutedStyle.Render("press any key to close")
+}
+
+// overlay centres a boxed dialog on the screen, clipped to the terminal.
+func (m Model) overlay(content string) string {
+	width, height := max(m.width, 40), max(m.height, 10)
+	placed := lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, boxStyle.Render(content))
+	lines := strings.Split(placed, "\n")
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, width, "")
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// scrollStart returns the first row to show so the cursor stays visible.
+func scrollStart(cursor, total, visible int) int {
+	if visible <= 0 || total <= visible {
+		return 0
+	}
+	return min(max(cursor-visible+1, 0), total-visible)
+}
+
+// fit truncates s to width cells and pads it with spaces to exactly width.
+func fit(s string, width int) string {
+	s = ansi.Truncate(s, width, "…")
+	return s + strings.Repeat(" ", max(width-ansi.StringWidth(s), 0))
+}
+
+func padLines(lines []string, width, height int) []string {
+	for len(lines) < height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+	return lines[:height]
 }

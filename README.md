@@ -233,7 +233,13 @@ mktodo report --format html -o report.html
 
 ## Interactive menu (charmbracelet)
 
-When called a listing is provided of projects and topics
+When called a listing is provided of projects and topics: the project
+tree on the left, with the number of topics per project, and the topics
+of the selected project on the right.
+
+Use the arrow keys (or ``h``/``j``/``k``/``l``) to move, ``Tab`` or
+``←``/``→`` to switch between the two panes, and ``Enter`` to expand or
+collapse a project. ``?`` shows all keys.
 
 Selecting a topic and pressing "e" will allow the user to edit the
 topic content.
@@ -252,7 +258,8 @@ Selecting a topic and pressing "x" will remove the topic from the
 list but placing the contents in memory.
 
 Selecting a project and pressing "p" will append the topic to the
-list of topics in the project.
+list of topics in the project. Pressing "p" with a topic selected
+places it directly after that topic.
 
 Selecting a project and pressing "a" will present the user with a
 text field allowing for the creation of a new topic.
@@ -270,3 +277,9 @@ Pressing ``Esc`` will create a popup with the following options:
 
 
 
+
+FIXME topics are shown in red and marked with ``!``, completed topics
+are greyed out and struck through, and ``[UNSAVED]`` appears in the
+status line while there are unsaved changes. Colours are turned off
+when ``NO_COLOR`` is set or ``TERM=dumb``; every state is still shown
+with a marker.

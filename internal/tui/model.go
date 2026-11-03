@@ -1,12 +1,15 @@
 // Package tui implements the interactive terminal UI for managing TODO items.
+//
+// The screen has two panes: a project tree on the left and the items of the
+// selected project on the right (spec FR-7). All changes go through the
+// markdown.Document, so saving writes exactly what is shown.
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
-	"github.com/jvzantvoort/mktodo/internal/project"
 )
 
 type mode int
@@ -16,66 +19,84 @@ const (
 	modeEdit
 	modeConfirm
 	modeMenu
+	modeHelp
+)
+
+type pane int
+
+const (
+	paneProjects pane = iota
+	paneItems
+)
+
+// Default size until the terminal reports its real size.
+const (
+	defaultWidth  = 80
+	defaultHeight = 24
 )
 
 // Model is the Bubbletea model for the TUI.
 type Model struct {
 	config   *config.Config
 	doc      *markdown.Document
-	projects []*project.Project
-	list     list.Model
-	mode     mode
+	todoPath string
+	version  string
+
+	mode  mode
+	focus pane
+
+	// Project tree state. collapsed is keyed by project name.
+	collapsed     map[string]bool
+	projectCursor int
+	itemCursor    int
 
 	// Edit state: input holds the text being edited; adding is true when
 	// the input creates a new item instead of changing the selected one.
 	input  textinput.Model
 	adding bool
 
-	// Confirm dialog state
+	// Confirm dialog state. The action runs when the user answers "y".
 	confirmMsg    string
-	confirmAction func(*Model)
+	confirmAction func(*Model) tea.Cmd
 
-	// Menu state
-	menuItems  []string
-	menuCursor int
+	// clipboard holds an item that was cut and not yet pasted.
+	clipboard *markdown.Item
 
-	// File state
-	todoPath   string
 	hasChanges bool
+	status     string // feedback for the last action
+	err        error
 
-	// UI state
 	width    int
 	height   int
-	err      error
 	quitting bool
 }
 
-type todoItem struct {
-	item    *markdown.Item
-	project *project.Project
+// NewModel builds the TUI model for the given configuration and document.
+func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) (Model, error) {
+	input := textinput.New()
+	input.Placeholder = "Description"
+	input.CharLimit = 500
+
+	return Model{
+		config:    cfg,
+		doc:       doc,
+		todoPath:  todoPath,
+		version:   "dev",
+		focus:     paneItems,
+		collapsed: make(map[string]bool),
+		input:     input,
+		width:     defaultWidth,
+		height:    defaultHeight,
+	}, nil
 }
 
-func (t todoItem) Title() string {
-	status := "[ ]"
-	if t.item.Done {
-		status = "[✓]"
-	}
-
-	prefix := ""
-	if t.item.IsFIXME {
-		prefix = "🔴 FIXME: "
-	}
-
-	return prefix + status + " " + t.item.Description
+// WithVersion sets the version shown in the header.
+func (m Model) WithVersion(version string) Model {
+	m.version = version
+	return m
 }
 
-func (t todoItem) Description() string {
-	if t.project == nil {
-		return "Project: (none)"
-	}
-	return "Project: " + t.project.Title
-}
-
-func (t todoItem) FilterValue() string {
-	return t.item.Description
+// Init implements tea.Model.
+func (m Model) Init() tea.Cmd {
+	return nil
 }

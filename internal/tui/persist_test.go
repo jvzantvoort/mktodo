@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,14 +11,22 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 )
 
+// defaultConfig has a single project "default" titled "TODO".
+var defaultConfig = &config.Config{TodoFile: "TODO.md", Projects: []config.ProjectConfig{{Name: "default", Title: "TODO"}}}
+
 // newTestModel writes content to a temp TODO file and returns a model for it.
 func newTestModel(t *testing.T, content string) (tea.Model, string) {
+	t.Helper()
+	return newTestModelWith(t, content, defaultConfig)
+}
+
+// newTestModelWith is newTestModel with a custom configuration.
+func newTestModelWith(t *testing.T, content string, cfg *config.Config) (tea.Model, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "TODO.md")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg := &config.Config{TodoFile: "TODO.md", Projects: []config.ProjectConfig{{Name: "default", Title: "TODO"}}}
 	doc, err := markdown.LoadDocument(path, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +41,8 @@ func newTestModel(t *testing.T, content string) (tea.Model, string) {
 }
 
 // press sends keys to the model: "space", "enter", "esc", "backspace",
-// "down", or literal text typed one rune at a time.
+// arrow keys ("up", "down", "left", "right"), "tab", or literal text typed
+// one rune at a time.
 func press(m tea.Model, keys ...string) tea.Model {
 	for _, k := range keys {
 		var msgs []tea.KeyMsg
@@ -47,6 +57,14 @@ func press(m tea.Model, keys ...string) tea.Model {
 			msgs = []tea.KeyMsg{{Type: tea.KeyBackspace}}
 		case "down":
 			msgs = []tea.KeyMsg{{Type: tea.KeyDown}}
+		case "up":
+			msgs = []tea.KeyMsg{{Type: tea.KeyUp}}
+		case "left":
+			msgs = []tea.KeyMsg{{Type: tea.KeyLeft}}
+		case "right":
+			msgs = []tea.KeyMsg{{Type: tea.KeyRight}}
+		case "tab":
+			msgs = []tea.KeyMsg{{Type: tea.KeyTab}}
 		default:
 			for _, r := range k {
 				msgs = append(msgs, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
@@ -163,13 +181,26 @@ func TestTUI_SaveAndQuitStaysOpenOnError(t *testing.T) {
 	}
 }
 
-func TestTodoItem_NoProject(t *testing.T) {
+func TestTUI_ItemsOutsideProjectsAreShown(t *testing.T) {
 	m, _ := newTestModel(t, "# Notes\n\n- [ ] orphan\n")
-	item, ok := asModel(t, m).list.Items()[0].(todoItem)
-	if !ok {
-		t.Fatal("list item is not a todoItem")
+	model := asModel(t, m)
+
+	rows := model.rows()
+	last := rows[len(rows)-1]
+	if last.project != nil || last.count != 1 {
+		t.Fatalf("last row = %+v, want the (no project) row with 1 item", last)
 	}
-	if got := item.Description(); got != "Project: (none)" {
-		t.Errorf("Description() = %q", got)
+
+	// Select the (no project) row: its item is listed, but adding is refused.
+	model = asModel(t, press(model, "left", "down", "down"))
+	if items := model.items(); len(items) != 1 || items[0].Description != "orphan" {
+		t.Errorf("items = %v, want [orphan]", items)
+	}
+	model = asModel(t, press(model, "a"))
+	if model.mode != modeNormal || model.err == nil {
+		t.Error("adding to the (no project) row should be refused with an error")
+	}
+	if !strings.Contains(model.View(), "(no project) (1)") {
+		t.Error("view doesn't show the (no project) row")
 	}
 }
