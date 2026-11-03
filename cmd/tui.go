@@ -34,6 +34,7 @@ Keyboard shortcuts:
 
 Examples:
   mktodo tui`,
+	Args: usageArgs(cobra.NoArgs),
 	RunE: runTUI,
 }
 
@@ -52,17 +53,17 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if errors.Is(err, fs.ErrNotExist) {
 		projects, buildErr := project.BuildHierarchy(cfg)
 		if buildErr != nil {
-			return messages.Errorf("ERR_CONFIG_INVALID", buildErr)
+			return configError(messages.Errorf("ERR_CONFIG_INVALID", buildErr))
 		}
 		doc = markdown.NewDocument(todoPath, projects)
 	} else if err != nil {
-		return messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
+		return fileError(messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err))
 	}
 
 	// Create TUI model
 	model, err := tui.NewModel(cfg, doc, todoPath)
 	if err != nil {
-		return messages.Errorf("ERR_CONFIG_INVALID", err)
+		return configError(messages.Errorf("ERR_CONFIG_INVALID", err))
 	}
 
 	// Run TUI

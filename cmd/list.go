@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/jvzantvoort/mktodo/internal/markdown"
-	"github.com/jvzantvoort/mktodo/internal/project"
+	"github.com/jvzantvoort/mktodo/messages"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -21,15 +21,11 @@ Examples:
   mktodo list
   mktodo ls -o
   mktodo ls -p lego --format json`,
+	Args: usageArgs(cobra.NoArgs),
 	RunE: runList,
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	repo, cfg, err := loadConfig(cmd)
-	if err != nil {
-		return err
-	}
-
 	// Get flags
 	projectPath, err := cmd.Flags().GetString("project")
 	if err != nil {
@@ -48,23 +44,25 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Load document
-	todoPath := repo.ResolvePath(cfg.TodoFile)
-	doc, err := markdown.LoadDocument(todoPath, cfg)
-	if err != nil {
-		return fmt.Errorf("loading document: %w", err)
+	if showOpen && showDone {
+		return usageError(messages.Errorf("ERR_CONFLICTING_FLAGS", "open", "done"))
+	}
+	if err = validateFormat(format, "text", "json", "yaml"); err != nil {
+		return err
 	}
 
-	// Get items
-	var items []*markdown.Item
-	if projectPath != "" {
-		proj, err := project.FindByPath(doc.Projects, projectPath)
-		if err != nil {
-			return fmt.Errorf("project %q not found", projectPath)
-		}
-		items = doc.GetItemsByProject(proj)
-	} else {
-		items = doc.Items
+	repo, cfg, err := loadConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	doc, err := loadDocument(repo, cfg)
+	if err != nil {
+		return err
+	}
+	items, err := projectItems(doc, projectPath)
+	if err != nil {
+		return err
 	}
 
 	// Filter by status
@@ -107,7 +105,7 @@ func filterDone(items []*markdown.Item) []*markdown.Item {
 
 func outputText(items []*markdown.Item) error {
 	if len(items) == 0 {
-		fmt.Println("No TODO items found.")
+		fmt.Println(messages.Prompt("MSG_NO_ITEMS"))
 		return nil
 	}
 

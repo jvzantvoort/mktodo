@@ -23,7 +23,7 @@ Examples:
   mktodo add "Complete documentation"
   mktodo add -p lego.technic "Build crane model"
   mktodo add "FIXME: Security vulnerability"`,
-	Args: cobra.MinimumNArgs(1),
+	Args: usageArgs(cobra.MinimumNArgs(1)),
 	RunE: runAdd,
 }
 
@@ -51,9 +51,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	proj, err := project.FindByPath(doc.Projects, projectPath)
+	proj, err := findProject(doc, projectPath)
 	if err != nil {
-		return messages.Errorf("ERR_PROJECT_NOT_FOUND", projectPath, getAvailableProjects(doc.Projects))
+		return err
 	}
 
 	// The file exists but has no header for this project: ask before adding one.
@@ -67,9 +67,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return messages.Errorf("ERR_OPERATION_FAILED", err)
 	}
 
-	// Save the document
-	if err := markdown.SaveDocument(todoPath, doc); err != nil {
-		return messages.Errorf("ERR_FILE_WRITE_FAILED", todoPath, err)
+	if err := saveDocument(doc); err != nil {
+		return err
 	}
 
 	// Success message
@@ -91,7 +90,7 @@ func loadOrCreateDocument(todoPath string, cfg *config.Config, skipConfirm bool)
 		return doc, nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
-		return nil, messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err)
+		return nil, fileError(messages.Errorf("ERR_FILE_READ_FAILED", todoPath, err))
 	}
 
 	if !skipConfirm && !confirm(messages.Prompt("PROMPT_CREATE_FILE", cfg.TodoFile)) {
@@ -100,7 +99,7 @@ func loadOrCreateDocument(todoPath string, cfg *config.Config, skipConfirm bool)
 
 	projects, err := project.BuildHierarchy(cfg)
 	if err != nil {
-		return nil, messages.Errorf("ERR_CONFIG_INVALID", err)
+		return nil, configError(messages.Errorf("ERR_CONFIG_INVALID", err))
 	}
 	doc = markdown.NewDocument(todoPath, projects)
 	for _, proj := range project.Sorted(projects) {
@@ -109,15 +108,6 @@ func loadOrCreateDocument(todoPath string, cfg *config.Config, skipConfirm bool)
 		}
 	}
 	return doc, nil
-}
-
-// getAvailableProjects returns a comma-separated list of project names
-func getAvailableProjects(projects map[string]*project.Project) string {
-	var names []string
-	for _, proj := range project.Sorted(projects) {
-		names = append(names, proj.FullPath())
-	}
-	return strings.Join(names, ", ")
 }
 
 func init() {

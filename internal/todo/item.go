@@ -40,8 +40,10 @@ func New(description string) *Item {
 	return &Item{Description: description, IsFIXME: isFIXME(description)}
 }
 
+// isFIXME reports whether a description starts with "FIXME:", ignoring case.
+// The colon is required, so "FIXMEs later" is an ordinary item.
 func isFIXME(description string) bool {
-	return strings.HasPrefix(strings.ToUpper(description), "FIXME")
+	return strings.HasPrefix(strings.ToUpper(description), "FIXME:")
 }
 
 // SetDescription changes the description and updates the FIXME flag.

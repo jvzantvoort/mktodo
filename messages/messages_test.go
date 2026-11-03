@@ -99,7 +99,7 @@ func TestError(t *testing.T) {
 			name:     "existing key with args",
 			key:      "ERR_FILE_NOT_FOUND",
 			args:     []interface{}{"test.md"},
-			expected: "Error: File 'test.md' not found.",
+			expected: "Error: File 'test.md' not found.\nRun 'mktodo add' to create it.",
 		},
 		{
 			name:     "non-existent key",
@@ -227,7 +227,7 @@ func TestErrorf(t *testing.T) {
 		t.Fatal("Expected error, got nil")
 	}
 
-	expected := "Error: File 'test.md' not found."
+	expected := "Error: File 'test.md' not found.\nRun 'mktodo add' to create it."
 	if err.Error() != expected {
 		t.Errorf("Expected %q, got %q", expected, err.Error())
 	}

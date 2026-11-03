@@ -26,7 +26,9 @@ func init() {
 	prompts = parseMessages(promptsText)
 }
 
-// parseMessages parses a message file into a key-value map
+// parseMessages parses a message file into a key-value map. Values keep
+// their spacing, so a prompt can end with a space and a message can be
+// indented.
 func parseMessages(content string) map[string]string {
 	result := make(map[string]string)
 	lines := strings.Split(content, "\n")
@@ -35,6 +37,8 @@ func parseMessages(content string) map[string]string {
 	var currentValue strings.Builder
 
 	for _, line := range lines {
+		line = strings.TrimSuffix(line, "\r") // tolerate CRLF checkouts
+
 		// Skip comments and empty lines at the start of a message
 		if strings.HasPrefix(strings.TrimSpace(line), "#") {
 			continue
@@ -44,7 +48,7 @@ func parseMessages(content string) map[string]string {
 		if strings.Contains(line, "=") && !strings.HasPrefix(line, " ") {
 			// Save previous message if exists
 			if currentKey != "" {
-				result[currentKey] = strings.TrimSpace(currentValue.String())
+				result[currentKey] = strings.TrimRight(currentValue.String(), "\n")
 			}
 
 			// Parse new message
@@ -63,7 +67,7 @@ func parseMessages(content string) map[string]string {
 
 	// Save last message
 	if currentKey != "" {
-		result[currentKey] = strings.TrimSpace(currentValue.String())
+		result[currentKey] = strings.TrimRight(currentValue.String(), "\n")
 	}
 
 	return result
