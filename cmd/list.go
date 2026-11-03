@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jvzantvoort/mktodo/internal/config"
-	"github.com/jvzantvoort/mktodo/internal/git"
 	"github.com/jvzantvoort/mktodo/internal/markdown"
 	"github.com/jvzantvoort/mktodo/internal/project"
 	"github.com/spf13/cobra"
@@ -27,16 +25,9 @@ Examples:
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	// Check we're in a git repository
-	repo, err := git.FindRepository()
+	repo, cfg, err := loadConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	// Load configuration
-	cfg, err := config.Load(repo.ConfigPath())
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
 	// Get flags

@@ -44,8 +44,8 @@ func TestNewModel(t *testing.T) {
 		t.Error("doc should not be nil")
 	}
 
-	if len(model.items) != 2 {
-		t.Errorf("expected 2 items, got %d", len(model.items))
+	if n := len(model.list.Items()); n != 2 {
+		t.Errorf("expected 2 items, got %d", n)
 	}
 
 	if model.mode != modeNormal {

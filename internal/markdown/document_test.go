@@ -196,18 +196,8 @@ func TestDocument_UpdateItem(t *testing.T) {
 	}
 
 	// Verify the line was updated
-	found := false
-	for _, section := range doc.Sections {
-		for _, line := range section.Lines {
-			if line == item.String() {
-				found = true
-				break
-			}
-		}
-	}
-
-	if !found {
-		t.Error("item line not updated in document")
+	if !strings.Contains(doc.String(), item.String()+"\n") {
+		t.Errorf("item line %q not updated in document:\n%s", item.String(), doc.String())
 	}
 
 	// Toggle back

@@ -1,6 +1,8 @@
 # Add Command
 PROMPT_CREATE_FILE=File %s does not exist. Create it? [y/N] 
 
+PROMPT_CREATE_SECTION=Section '%s' not found in %s. Add it? [y/N] 
+
 MSG_ADDED=Added: %s
 
 MSG_MARKED_FIXME=  (marked as FIXME)

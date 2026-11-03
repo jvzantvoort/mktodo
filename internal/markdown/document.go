@@ -2,6 +2,7 @@
 package markdown
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,56 +12,67 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/todo"
 )
 
+// ErrItemNotFound is returned when an item is not part of the document.
+var ErrItemNotFound = errors.New("item not found in document")
+
 // Item is an alias for todo.Item for convenience
 type Item = todo.Item
 
-// Document represents a parsed markdown document
+// Document represents a parsed markdown document.
+//
+// Items are shared with the TODO sections that render them, so changing an
+// item's Done or Description changes the document text directly.
 type Document struct {
 	Path     string
 	Sections []*Section
 	Projects map[string]*project.Project
 	Items    []*Item
+
+	eol        string // line ending of the source file
+	noFinalEOL bool   // source file did not end with a line ending
+}
+
+// NewDocument creates an empty document for a file that does not exist yet.
+func NewDocument(path string, projects map[string]*project.Project) *Document {
+	return &Document{
+		Path:     path,
+		Projects: projects,
+		eol:      "\n",
+	}
 }
 
 // LoadDocument loads and parses a markdown file
 func LoadDocument(path string, cfg *config.Config) (*Document, error) {
-	// Read file
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
 
-	// Build project hierarchy
 	projects, err := project.BuildHierarchy(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("building hierarchy: %w", err)
 	}
 
-	// Parse sections
-	sections, err := ParseSections(string(content))
-	if err != nil {
-		return nil, fmt.Errorf("parsing sections: %w", err)
-	}
+	lines, eol, trailingEOL := splitLines(string(content))
+	sections := parseLines(lines)
 
-	// Associate projects with sections
 	if err := AssociateProjects(sections, projects); err != nil {
 		return nil, fmt.Errorf("associating projects: %w", err)
 	}
 
-	// Collect all TODO items
 	var items []*todo.Item
 	for _, section := range sections {
 		items = append(items, section.TODOItems...)
 	}
 
-	doc := &Document{
-		Path:     path,
-		Sections: sections,
-		Projects: projects,
-		Items:    items,
-	}
-
-	return doc, nil
+	return &Document{
+		Path:       path,
+		Sections:   sections,
+		Projects:   projects,
+		Items:      items,
+		eol:        eol,
+		noFinalEOL: !trailingEOL,
+	}, nil
 }
 
 // GetItemsByProject returns TODO items for a specific project
@@ -107,147 +119,266 @@ func (d *Document) GetFIXMEItems() []*todo.Item {
 	return items
 }
 
-// FindItem finds a TODO item by description (case-insensitive partial match)
+// FindItem finds TODO items matching a description; see MatchItems.
 func (d *Document) FindItem(query string) []*todo.Item {
-	var items []*todo.Item
-	for _, item := range d.Items {
-		if item.Matches(query) {
-			items = append(items, item)
-		}
-	}
-	return items
+	return MatchItems(d.Items, query)
 }
 
-// AddItem adds a new TODO item to a project
+// MatchItems returns the items whose description equals query (ignoring
+// case and surrounding whitespace). If there are none, it returns the items
+// whose description contains query. Preferring exact matches means an item
+// can always be selected by its full description, even when it is a prefix
+// of another item.
+func MatchItems(items []*todo.Item, query string) []*todo.Item {
+	query = strings.TrimSpace(query)
+	var exact, partial []*todo.Item
+	for _, item := range items {
+		if strings.EqualFold(item.Description, query) {
+			exact = append(exact, item)
+		} else if item.Matches(query) {
+			partial = append(partial, item)
+		}
+	}
+	if len(exact) > 0 {
+		return exact
+	}
+	return partial
+}
+
+// HasSection reports whether the document has a header for the project.
+func (d *Document) HasSection(proj *project.Project) bool {
+	return d.headerIndex(proj) >= 0
+}
+
+// EnsureSection makes sure the document has a header for the project,
+// creating it (and any missing parent headers) if needed. A root project's
+// header is appended to the end of the document; a child project's header is
+// placed at the end of its parent's section, so the hierarchy is kept.
+func (d *Document) EnsureSection(proj *project.Project) error {
+	if d.HasSection(proj) {
+		return nil
+	}
+	if proj.Level < 1 || proj.Level > 6 {
+		return fmt.Errorf("project %s: header level %d is outside 1-6", proj.Name, proj.Level)
+	}
+
+	pos := len(d.Sections)
+	if proj.Parent != nil {
+		if err := d.EnsureSection(proj.Parent); err != nil {
+			return err
+		}
+		pos = d.subtreeEnd(d.headerIndex(proj.Parent))
+	}
+
+	header := &Section{
+		Type:    SectionHeader,
+		Level:   proj.Level,
+		Title:   proj.Title,
+		Project: proj,
+		Lines:   []string{strings.Repeat("#", proj.Level) + " " + proj.Title},
+	}
+	if pos < len(d.Sections) {
+		header.Lines = append(header.Lines, "")
+	}
+
+	if pos > 0 && lastLine(d.Sections[pos-1]) != "" {
+		d.insertSection(pos, blankSection(1))
+		pos++
+	}
+	d.insertSection(pos, header)
+	return nil
+}
+
+// AddItem adds a new TODO item at the end of the project's TODO list,
+// creating the project's header if the document doesn't have one.
 func (d *Document) AddItem(proj *project.Project, description string) (*todo.Item, error) {
-	item := &todo.Item{
-		Description: description,
-		Done:        false,
-		Project:     proj,
+	if err := d.EnsureSection(proj); err != nil {
+		return nil, fmt.Errorf("creating section for project %s: %w", proj.Name, err)
 	}
 
-	// Check for FIXME
-	if strings.HasPrefix(strings.ToUpper(description), "FIXME") {
-		item.IsFIXME = true
+	item := todo.New(description)
+	item.Project = proj
+
+	target := d.lastTODOSection(proj)
+	if target == nil {
+		target = d.insertTODOSection(d.headerIndex(proj))
 	}
 
-	// Find the section for this project
-	var targetSection *Section
-	for _, section := range d.Sections {
-		if section.Type == SectionHeader && section.Project == proj {
-			// Look for TODO section after this header
-			for i, s := range d.Sections {
-				if s == section {
-					// Check next section
-					if i+1 < len(d.Sections) && d.Sections[i+1].Type == SectionTODO {
-						targetSection = d.Sections[i+1]
-					}
-					break
-				}
-			}
-			break
-		}
-	}
-
-	// If no TODO section exists, create one
-	if targetSection == nil {
-		// Find the header section
-		for i, section := range d.Sections {
-			if section.Type == SectionHeader && section.Project == proj {
-				// Insert new TODO section after header
-				newSection := &Section{
-					Type:      SectionTODO,
-					Lines:     []string{},
-					TODOItems: []*todo.Item{},
-					StartLine: section.StartLine + len(section.Lines),
-				}
-
-				// Insert into sections slice
-				d.Sections = append(d.Sections[:i+1], append([]*Section{newSection}, d.Sections[i+1:]...)...)
-				targetSection = newSection
-				break
-			}
-		}
-	}
-
-	if targetSection == nil {
-		return nil, fmt.Errorf("could not find or create section for project %s", proj.Name)
-	}
-
-	// Add item to section
-	targetSection.Lines = append(targetSection.Lines, item.String())
-	targetSection.TODOItems = append(targetSection.TODOItems, item)
+	target.TODOItems = append(target.TODOItems, item)
 	d.Items = append(d.Items, item)
-
 	return item, nil
 }
 
 // RemoveItem removes a TODO item from the document
 func (d *Document) RemoveItem(item *todo.Item) error {
-	// Find and remove from section
-	for _, section := range d.Sections {
+	for si, section := range d.Sections {
 		if section.Type != SectionTODO {
 			continue
 		}
-
 		for i, sectionItem := range section.TODOItems {
-			if sectionItem == item {
-				// Remove from TODOItems
-				section.TODOItems = append(section.TODOItems[:i], section.TODOItems[i+1:]...)
-
-				// Remove from Lines
-				if i < len(section.Lines) {
-					section.Lines = append(section.Lines[:i], section.Lines[i+1:]...)
-				}
-
-				// Remove from document items
-				for j, docItem := range d.Items {
-					if docItem == item {
-						d.Items = append(d.Items[:j], d.Items[j+1:]...)
-						break
-					}
-				}
-
-				return nil
+			if sectionItem != item {
+				continue
 			}
+			section.TODOItems = append(section.TODOItems[:i], section.TODOItems[i+1:]...)
+			d.removeFromItems(item)
+			if len(section.TODOItems) == 0 {
+				d.removeEmptyTODOSection(si)
+			}
+			return nil
 		}
 	}
-
-	return fmt.Errorf("item not found in document")
+	return ErrItemNotFound
 }
 
-// UpdateItem updates a TODO item's done status
+// UpdateItem checks that the item belongs to the document. Changes to an
+// item are rendered automatically, so no other work is needed; it is kept so
+// callers can confirm an item is still part of the document.
 func (d *Document) UpdateItem(item *todo.Item) error {
-	// Find item in sections and update the line
-	for _, section := range d.Sections {
-		if section.Type != SectionTODO {
-			continue
-		}
-
-		for i, sectionItem := range section.TODOItems {
-			if sectionItem == item {
-				// Update the line
-				if i < len(section.Lines) {
-					section.Lines[i] = item.String()
-				}
-				return nil
-			}
+	for _, docItem := range d.Items {
+		if docItem == item {
+			return nil
 		}
 	}
-
-	return fmt.Errorf("item not found in document")
+	return ErrItemNotFound
 }
 
-// String returns the document as markdown text
+// String returns the document as markdown text, using the line ending of the
+// source file and keeping whether it ended with a final line ending.
 func (d *Document) String() string {
-	var parts []string
+	var lines []string
 	for _, section := range d.Sections {
-		parts = append(parts, section.String())
+		lines = append(lines, section.lines()...)
 	}
-	result := strings.Join(parts, "\n")
-	// Ensure file ends with newline
-	if len(result) > 0 && !strings.HasSuffix(result, "\n") {
-		result += "\n"
+	if len(lines) == 0 {
+		return ""
+	}
+	eol := d.eol
+	if eol == "" {
+		eol = "\n"
+	}
+	result := strings.Join(lines, eol)
+	if !d.noFinalEOL {
+		result += eol
 	}
 	return result
+}
+
+func (d *Document) headerIndex(proj *project.Project) int {
+	for i, section := range d.Sections {
+		if section.Type == SectionHeader && section.Project == proj {
+			return i
+		}
+	}
+	return -1
+}
+
+// bodyEnd returns the index of the first header after index i, or the
+// number of sections. The sections in between belong to the header at i.
+func (d *Document) bodyEnd(i int) int {
+	for j := i + 1; j < len(d.Sections); j++ {
+		if d.Sections[j].Type == SectionHeader {
+			return j
+		}
+	}
+	return len(d.Sections)
+}
+
+// subtreeEnd returns the index of the first header after i at the same or a
+// higher level, so the sections in between include all child sections.
+func (d *Document) subtreeEnd(i int) int {
+	level := d.Sections[i].Level
+	for j := i + 1; j < len(d.Sections); j++ {
+		if s := d.Sections[j]; s.Type == SectionHeader && s.Level <= level {
+			return j
+		}
+	}
+	return len(d.Sections)
+}
+
+func (d *Document) lastTODOSection(proj *project.Project) *Section {
+	hi := d.headerIndex(proj)
+	if hi < 0 {
+		return nil
+	}
+	var last *Section
+	for _, s := range d.Sections[hi+1 : d.bodyEnd(hi)] {
+		if s.Type == SectionTODO {
+			last = s
+		}
+	}
+	return last
+}
+
+// insertTODOSection creates an empty TODO list after the header at index hi.
+// The list is separated from the header text by one blank line, and the
+// blank lines that ended the header section are moved after the list so the
+// next header stays separated.
+func (d *Document) insertTODOSection(hi int) *Section {
+	header := d.Sections[hi]
+	trailing := 0
+	for trailing < len(header.Lines)-1 && header.Lines[len(header.Lines)-1-trailing] == "" {
+		trailing++
+	}
+	header.Lines = append(header.Lines[:len(header.Lines)-trailing:len(header.Lines)-trailing], "")
+
+	list := &Section{Type: SectionTODO, StartLine: header.StartLine + len(header.Lines)}
+	d.insertSection(hi+1, list)
+
+	next := hi + 2
+	switch {
+	case trailing > 0:
+		d.insertSection(next, blankSection(trailing))
+	case next < len(d.Sections) && firstLine(d.Sections[next]) != "":
+		d.insertSection(next, blankSection(1))
+	}
+	return list
+}
+
+// removeEmptyTODOSection drops an emptied TODO section at index i and, if
+// that leaves two blank lines in a row, one of them.
+func (d *Document) removeEmptyTODOSection(i int) {
+	d.Sections = append(d.Sections[:i], d.Sections[i+1:]...)
+	if i == 0 || i >= len(d.Sections) {
+		return
+	}
+	prev, next := d.Sections[i-1], d.Sections[i]
+	if next.Type == SectionOther && lastLine(prev) == "" && firstLine(next) == "" {
+		next.Lines = next.Lines[1:]
+		if len(next.Lines) == 0 {
+			d.Sections = append(d.Sections[:i], d.Sections[i+1:]...)
+		}
+	}
+}
+
+func (d *Document) removeFromItems(item *todo.Item) {
+	for j, docItem := range d.Items {
+		if docItem == item {
+			d.Items = append(d.Items[:j], d.Items[j+1:]...)
+			return
+		}
+	}
+}
+
+func (d *Document) insertSection(i int, s *Section) {
+	d.Sections = append(d.Sections, nil)
+	copy(d.Sections[i+1:], d.Sections[i:])
+	d.Sections[i] = s
+}
+
+func blankSection(n int) *Section {
+	return &Section{Type: SectionOther, Lines: make([]string, n)}
+}
+
+func firstLine(s *Section) string {
+	if lines := s.lines(); len(lines) > 0 {
+		return lines[0]
+	}
+	return ""
+}
+
+func lastLine(s *Section) string {
+	if lines := s.lines(); len(lines) > 0 {
+		return lines[len(lines)-1]
+	}
+	return ""
 }

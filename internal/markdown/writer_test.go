@@ -188,9 +188,9 @@ func TestSaveDocument_Integration(t *testing.T) {
 			},
 			{
 				Type: SectionTODO,
-				Lines: []string{
-					"- [ ] Task 1",
-					"- [X] Task 2",
+				TODOItems: []*Item{
+					{Description: "Task 1"},
+					{Description: "Task 2", Done: true},
 				},
 			},
 		},

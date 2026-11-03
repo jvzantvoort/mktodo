@@ -3,6 +3,7 @@ package project
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jvzantvoort/mktodo/internal/config"
@@ -15,6 +16,7 @@ type Project struct {
 	Parent   *Project
 	Children []*Project
 	Level    int // Header level (1-6)
+	Index    int // Position in the configuration, used for stable ordering
 }
 
 // BuildHierarchy builds the project hierarchy from configuration
@@ -22,11 +24,12 @@ func BuildHierarchy(cfg *config.Config) (map[string]*Project, error) {
 	projects := make(map[string]*Project)
 
 	// First pass: create all projects
-	for _, projCfg := range cfg.Projects {
+	for i, projCfg := range cfg.Projects {
 		projects[projCfg.Name] = &Project{
 			Name:     projCfg.Name,
 			Title:    projCfg.Title,
 			Children: make([]*Project, 0),
+			Index:    i,
 		}
 	}
 
@@ -98,15 +101,25 @@ func FindByPath(projects map[string]*Project, path string) (*Project, error) {
 	return current, nil
 }
 
-// GetRootProjects returns all projects without parents
+// GetRootProjects returns all projects without parents, in configuration order
 func GetRootProjects(projects map[string]*Project) []*Project {
 	roots := make([]*Project, 0)
-	for _, proj := range projects {
+	for _, proj := range Sorted(projects) {
 		if proj.Parent == nil {
 			roots = append(roots, proj)
 		}
 	}
 	return roots
+}
+
+// Sorted returns all projects in configuration order
+func Sorted(projects map[string]*Project) []*Project {
+	sorted := make([]*Project, 0, len(projects))
+	for _, proj := range projects {
+		sorted = append(sorted, proj)
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Index < sorted[j].Index })
+	return sorted
 }
 
 // FullPath returns the full dotted path to this project

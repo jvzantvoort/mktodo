@@ -43,6 +43,7 @@ var (
 			Margin(1, 2)
 )
 
+// View implements tea.Model.
 func (m Model) View() string {
 	if m.quitting {
 		return "Goodbye!\n"
@@ -111,8 +112,12 @@ func (m Model) viewMenu() string {
 func (m Model) viewEdit() string {
 	var b strings.Builder
 
-	b.WriteString("Edit TODO:\n\n")
-	b.WriteString(m.editInput + "█\n\n")
+	title := "Edit TODO:"
+	if m.adding {
+		title = "Add TODO:"
+	}
+	b.WriteString(title + "\n\n")
+	b.WriteString(m.input.View() + "\n\n")
 	b.WriteString(helpStyle.Render("enter:save • esc:cancel"))
 
 	content := editStyle.Render(b.String())
