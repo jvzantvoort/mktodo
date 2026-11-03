@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,31 +29,31 @@ func TestValidate(t *testing.T) {
 			name:        "circular dependency",
 			configFile:  "circular.yml",
 			wantErr:     true,
-			errContains: []string{"circular dependency"},
+			errContains: []string{"Circular reference detected: project1 -> project2 -> project1"},
 		},
 		{
 			name:        "duplicate names",
 			configFile:  "duplicate.yml",
 			wantErr:     true,
-			errContains: []string{"duplicate project name"},
+			errContains: []string{"Duplicate project name"},
 		},
 		{
 			name:        "deep nesting",
 			configFile:  "deep_nesting.yml",
 			wantErr:     true,
-			errContains: []string{"nesting depth", "exceeds maximum"},
+			errContains: []string{"levels deep", "at most 6"},
 		},
 		{
 			name:        "missing fields",
 			configFile:  "missing_fields.yml",
 			wantErr:     true,
-			errContains: []string{"required"},
+			errContains: []string{"has no"},
 		},
 		{
 			name:        "invalid parent reference",
 			configFile:  "invalid_parent.yml",
 			wantErr:     true,
-			errContains: []string{"parent", "does not exist"},
+			errContains: []string{"references non-existent parent"},
 		},
 	}
 
@@ -99,7 +101,7 @@ func TestValidate_EmptyProjects(t *testing.T) {
 	if err == nil {
 		t.Error("Validate() expected error for empty projects, got nil")
 	}
-	if !strings.Contains(err.Error(), "at least one project") {
+	if !strings.Contains(err.Error(), "At least one project") {
 		t.Errorf("Validate() error = %v, should mention at least one project", err)
 	}
 }
@@ -121,10 +123,10 @@ func TestValidate_MultipleErrors(t *testing.T) {
 
 	errStr := err.Error()
 	// Should report multiple errors
-	if !strings.Contains(errStr, "name is required") {
+	if !strings.Contains(errStr, "Project at position 1 has no name") {
 		t.Error("Should report missing name")
 	}
-	if !strings.Contains(errStr, "duplicate") {
+	if !strings.Contains(errStr, "Duplicate project name 'dup'") {
 		t.Error("Should report duplicate name")
 	}
 }
@@ -237,4 +239,59 @@ func TestValidate_NilParentHandling(t *testing.T) {
 // Helper function to create string pointers
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestValidate_ReportsEachCycleWithItsPath(t *testing.T) {
+	cfg := &Config{Projects: []ProjectConfig{
+		{Name: "c", Title: "C", Parent: stringPtr("a")},
+		{Name: "a", Title: "A", Parent: stringPtr("b")},
+		{Name: "b", Title: "B", Parent: stringPtr("c")},
+		{Name: "x", Title: "X", Parent: stringPtr("y")},
+		{Name: "y", Title: "Y", Parent: stringPtr("x")},
+		{Name: "leaf", Title: "Leaf", Parent: stringPtr("a")},
+	}}
+
+	var verr *ValidationError
+	if err := cfg.Validate(); !errors.As(err, &verr) {
+		t.Fatalf("Validate() = %v, want a *ValidationError", err)
+	}
+	want := []string{
+		"Circular reference detected: a -> b -> c -> a",
+		"Circular reference detected: x -> y -> x",
+	}
+	if strings.Join(verr.Problems, "|") != strings.Join(want, "|") {
+		t.Errorf("problems = %q, want %q", verr.Problems, want)
+	}
+}
+
+func TestValidate_ErrorFormat(t *testing.T) {
+	cfg := &Config{Projects: []ProjectConfig{
+		{Name: "technic", Title: "Technic", Parent: stringPtr("lego")},
+	}}
+	want := "- Project 'technic' references non-existent parent 'lego'"
+	if err := cfg.Validate(); err == nil || err.Error() != want {
+		t.Errorf("Validate() = %q, want %q", err, want)
+	}
+}
+
+func TestLoad_UnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".mktodo.yml")
+	content := "todofile: TODO.md\ncolour: red\nprojects:\n  - name: default\n    title: TODO\n    parnet: nil\n  - title: Second\n    label: second\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	var verr *ValidationError
+	if !errors.As(err, &verr) {
+		t.Fatalf("Load() = %v, want a *ValidationError", err)
+	}
+	want := []string{
+		"Unknown key 'colour' (expected: todofile, projects)",
+		"Project 'default': unknown key 'parnet' (expected: name, title, parent)",
+		"Project at position 2: unknown key 'label' (expected: name, title, parent)",
+	}
+	if strings.Join(verr.Problems, "|") != strings.Join(want, "|") {
+		t.Errorf("problems:\n%s\nwant:\n%s", strings.Join(verr.Problems, "\n"), strings.Join(want, "\n"))
+	}
 }

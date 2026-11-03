@@ -44,10 +44,21 @@ exists with a warning.
 * Fill out the github workflows to ensure a complete ci/cd picture
 
 
+# Installation
+
+Download a binary from the
+[releases page](https://github.com/jvzantvoort/mktodo/releases), or
+build it with Go 1.24 or later:
+
+```
+go install github.com/jvzantvoort/mktodo@latest
+```
+
 # Configuration
 
 In the root of the git repo a target called ".mktodo.yml" maintains
-the information to work.
+the information to work. Unknown keys are reported as errors, so a
+typo such as ``projets:`` doesn't go unnoticed.
 
 
 ## Simple todo list
@@ -202,6 +213,17 @@ Remove ``topic 5`` from the ``## Technic`` section:
 
 ```
 mktodo rm -p lego.technic topic 5
+```
+
+### Several items at once
+
+With ``--all`` (``-a``), ``done`` and ``remove`` act on every item whose
+description contains the text. ``done --all`` marks them all done;
+``remove --all`` lists them and asks once.
+
+```
+mktodo done --all release
+mktodo rm --all -p lego obsolete
 ```
 
 ### List

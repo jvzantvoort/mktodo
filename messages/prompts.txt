@@ -19,6 +19,8 @@ MSG_MARKED_UNDONE=✗ Marked as not done: %s
 # Remove Command
 PROMPT_CONFIRM_REMOVE=Remove '%s'? [y/N] 
 
+PROMPT_CONFIRM_REMOVE_ALL=Remove these %d items? [y/N] 
+
 MSG_REMOVED=✗ Removed: %s
 
 # List Command

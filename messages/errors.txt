@@ -12,6 +12,9 @@ ERR_CONFIG_LOAD_FAILED=Error: Failed to load configuration: %s
 
 ERR_CONFIG_INVALID=Error: Invalid configuration: %s
 
+ERR_CONFIG_INVALID_IN=Error: Invalid configuration in %s
+%s
+
 ERR_TODOFILE_OUTSIDE_REPO=Error: todofile '%s' is outside the git repository.
 Use a path relative to the repository root that stays inside it.
 
@@ -42,7 +45,7 @@ Use 'mktodo list' to see all items.
 
 ERR_ITEM_AMBIGUOUS=Error: Multiple TODO items match '%s':
 %s
-Please be more specific.
+Please be more specific, or use --all to act on all of them.
 
 ERR_NO_DESCRIPTION=Error: Description is required.
 
