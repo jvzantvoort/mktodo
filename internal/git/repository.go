@@ -1,3 +1,4 @@
+// Package git locates the enclosing git repository and resolves paths within it.
 package git
 
 import (

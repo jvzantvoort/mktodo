@@ -1,3 +1,4 @@
+// Package cmd implements the mktodo command-line interface.
 package cmd
 
 import (

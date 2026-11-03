@@ -149,7 +149,10 @@ func (m Model) buildStatusBar() string {
 	fixme := 0
 
 	for _, item := range m.list.Items() {
-		ti := item.(todoItem)
+		ti, ok := item.(todoItem)
+		if !ok {
+			continue
+		}
 		if ti.item.Done {
 			done++
 		}

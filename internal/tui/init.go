@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jvzantvoort/mktodo/internal/config"
@@ -8,8 +10,12 @@ import (
 	"github.com/jvzantvoort/mktodo/internal/project"
 )
 
-func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) Model {
-	projectMap, _ := project.BuildHierarchy(cfg)
+// NewModel builds the TUI model for the given configuration and document.
+func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) (Model, error) {
+	projectMap, err := project.BuildHierarchy(cfg)
+	if err != nil {
+		return Model{}, fmt.Errorf("building project hierarchy: %w", err)
+	}
 	projects := make([]*project.Project, 0, len(projectMap))
 	for _, p := range projectMap {
 		projects = append(projects, p)
@@ -40,7 +46,7 @@ func NewModel(cfg *config.Config, doc *markdown.Document, todoPath string) Model
 			"x - Save and quit",
 			"Esc - Cancel",
 		},
-	}
+	}, nil
 }
 
 func (m Model) Init() tea.Cmd {

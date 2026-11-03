@@ -1,3 +1,4 @@
+// Package todo defines TODO items and their parsing.
 package todo
 
 import (

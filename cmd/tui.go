@@ -44,7 +44,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, err := config.Load(repo.Root)
+	cfg, err := config.Load(repo.ConfigPath())
 	if err != nil {
 		return messages.Errorf("ERR_CONFIG_LOAD_FAILED", err)
 	}
@@ -56,7 +56,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	doc, err := markdown.LoadDocument(todoPath, cfg)
 	if err != nil {
 		// If file doesn't exist, create minimal document
-		projectMap, _ := project.BuildHierarchy(cfg)
+		projectMap, buildErr := project.BuildHierarchy(cfg)
+		if buildErr != nil {
+			return messages.Errorf("ERR_CONFIG_INVALID", buildErr)
+		}
 		doc = &markdown.Document{
 			Path:     todoPath,
 			Sections: []*markdown.Section{},
@@ -66,7 +69,10 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create TUI model
-	model := tui.NewModel(cfg, doc, todoPath)
+	model, err := tui.NewModel(cfg, doc, todoPath)
+	if err != nil {
+		return messages.Errorf("ERR_CONFIG_INVALID", err)
+	}
 
 	// Run TUI
 	p := tea.NewProgram(model, tea.WithAltScreen())

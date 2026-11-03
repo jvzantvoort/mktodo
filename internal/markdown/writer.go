@@ -36,8 +36,8 @@ func (w *Writer) Write(doc *Document) error {
 	// Ensure cleanup on error
 	defer func() {
 		if tmpFile != nil {
-			tmpFile.Close()
-			os.Remove(tmpPath)
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
@@ -96,8 +96,8 @@ func (w *Writer) WriteString(content string) error {
 	// Ensure cleanup on error
 	defer func() {
 		if tmpFile != nil {
-			tmpFile.Close()
-			os.Remove(tmpPath)
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
 		}
 	}()
 

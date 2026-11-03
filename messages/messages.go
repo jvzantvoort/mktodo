@@ -1,3 +1,4 @@
+// Package messages provides user-facing error, prompt and help messages.
 package messages
 
 import (

@@ -1,3 +1,4 @@
+// Package project builds and queries the project hierarchy from configuration.
 package project
 
 import (

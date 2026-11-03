@@ -1,3 +1,4 @@
+// Package config loads and validates the .mktodo.yml configuration.
 package config
 
 import (
